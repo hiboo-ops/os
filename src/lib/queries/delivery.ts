@@ -60,6 +60,7 @@ export async function getStudentsForPhaseBoard(coachId?: string) {
     .select(`
       id, name, phase, verdienmodel, activity_status, coaching_hours,
       kick_off_date, certification_date, last_check_in, next_check_in, coach_notes,
+      typeform_homework_link, typeform_feedback_link, google_docs_link,
       coach:coaches(id, name),
       client:clients(id, name, email, start_date, program, status, upsell_status)
     `)
@@ -146,6 +147,9 @@ export interface StudentWithRelations {
   last_check_in: string | null
   next_check_in: string | null
   coach_notes: string | null
+  typeform_homework_link: string | null
+  typeform_feedback_link: string | null
+  google_docs_link: string | null
   coach: { id: string; name: string } | null
   client: {
     id: string

@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { KpiCard } from '@/components/kpi-card'
 import { StatusBadge } from '@/components/status-badge'
-import { getDeliveryStats, getCoachesWithStats, getStudentsForPhaseBoard, getUpsellPipeline } from '@/lib/queries/delivery'
+import { getDeliveryStats, getCoachesWithStats, getStudentsForPhaseBoard, getUpsellPipeline, StudentWithRelations } from '@/lib/queries/delivery'
+import { StudentDetail } from '@/components/student-detail'
 import { ClipboardCheck, Clock, MessageSquare, CheckCircle, AlertTriangle, UserPlus } from 'lucide-react'
 
 const vmLabels: Record<string, string> = { HIGH_TICKET_CLOSING: 'HIGH TICKET CLOSING', VA: 'VIRTUAL ASSISTANT', APPOINTMENT_SETTING: 'APPOINTMENT SETTING' }
@@ -31,6 +32,7 @@ export default function DeliveryPage() {
   const [upsells, setUpsells] = useState<Awaited<ReturnType<typeof getUpsellPipeline>>>([])
   const [loading, setLoading] = useState(true)
   const [selectedCoach, setSelectedCoach] = useState<string>('')
+  const [selectedStudent, setSelectedStudent] = useState<StudentWithRelations | null>(null)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -210,7 +212,7 @@ export default function DeliveryPage() {
                             const cs = colorStyles[s.activity_status] || colorStyles.GREEN
                             const vm = s.verdienmodel
                             return (
-                              <div key={s.id} className={`bg-white border border-slate-100 rounded-lg p-3 ${cs.bg} ring-1 ${cs.ring} hover:shadow-md transition`}>
+                              <div key={s.id} onClick={() => setSelectedStudent(s)} className={`cursor-pointer bg-white border border-slate-100 rounded-lg p-3 ${cs.bg} ring-1 ${cs.ring} hover:shadow-md transition`}>
                                 <div className="flex items-center gap-2 mb-2">
                                   <div className="relative">
                                     <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600">
@@ -295,6 +297,14 @@ export default function DeliveryPage() {
             })}
           </div>
         </>
+      )}
+      {/* Student Detail Panel */}
+      {selectedStudent && (
+        <StudentDetail
+          student={selectedStudent}
+          onClose={() => setSelectedStudent(null)}
+          onUpdate={() => loadData()}
+        />
       )}
     </div>
   )
