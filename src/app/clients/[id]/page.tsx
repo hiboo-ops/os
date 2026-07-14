@@ -73,10 +73,13 @@ export default function ClientProfilePage() {
   if (!client) return <div className="text-center py-12"><p className="text-slate-500">Client niet gevonden</p></div>
 
   const days = daysLeft(client.start_date)
-  const paidPayments = payments.filter(p => p.paid)
+  const activePayments = payments.filter(p => !p.legacy)
+  const legacyPayments = payments.filter(p => p.legacy)
+  const paidPayments = activePayments.filter(p => p.paid)
   const totalPaid = paidPayments.reduce((s, p) => s + (p.amount || 0), 0)
+  const legacyTotal = legacyPayments.reduce((s, p) => s + (p.amount || 0), 0)
   const totalOpen = (client.tcv || 0) - totalPaid
-  const collectionRate = payments.length > 0 ? Math.round((paidPayments.length / payments.length) * 100) : 0
+  const collectionRate = activePayments.length > 0 ? Math.round((paidPayments.length / activePayments.length) * 100) : 0
   const avgScore = feedback.length > 0 ? (feedback.reduce((s, f) => s + (f.score || 0), 0) / feedback.length).toFixed(1) : null
   const approvedHw = homework.filter(h => h.status === 'APPROVED').length
   const submittedHw = homework.filter(h => h.status === 'SUBMITTED').length
@@ -213,23 +216,59 @@ export default function ClientProfilePage() {
             <div className="px-6 py-4 border-b border-slate-100">
               <h2 className="text-sm font-semibold text-slate-700">Finance & Betalingen</h2>
             </div>
-            {payments.length > 0 ? (
-              <div className="px-6 py-4">
-                <div className="space-y-1.5">
-                  {payments.map(p => (
-                    <div key={p.id} className={`flex items-center gap-3 rounded-lg px-4 py-2.5 ${p.status === 'PAID' ? 'bg-emerald-50/70' : p.status === 'OVERDUE' ? 'bg-red-50/70 ring-1 ring-red-200' : 'bg-blue-50/70 ring-1 ring-blue-200'}`}>
-                      <span className="text-xs font-bold text-slate-400 w-5">{p.payment_number}</span>
-                      <span className="text-sm text-slate-900 flex-1">{eur(p.amount)}</span>
-                      <span className="text-xs text-slate-400 w-24">{p.due_date}</span>
-                      <StatusBadge status={p.status} />
-                      <span className="text-xs text-slate-400 w-16 text-right">{p.provider || ''}</span>
+            {(() => {
+              const activePayments = payments.filter(p => !p.legacy)
+              const legacyPayments = payments.filter(p => p.legacy)
+              const legacyTotal = legacyPayments.reduce((s, p) => s + (p.amount || 0), 0)
+
+              return (
+                <>
+                  {/* Active payments */}
+                  {activePayments.length > 0 && (
+                    <div className="px-6 py-4">
+                      <div className="space-y-1.5">
+                        {activePayments.map(p => (
+                          <div key={p.id} className={`flex items-center gap-3 rounded-lg px-4 py-2.5 ${p.status === 'PAID' ? 'bg-emerald-50/70' : p.status === 'OVERDUE' ? 'bg-red-50/70 ring-1 ring-red-200' : 'bg-blue-50/70 ring-1 ring-blue-200'}`}>
+                            <span className="text-xs font-bold text-slate-400 w-5">{p.payment_number}</span>
+                            <span className="text-sm text-slate-900 flex-1">{eur(p.amount)}</span>
+                            <span className="text-xs text-slate-400 w-24">{p.due_date}</span>
+                            <StatusBadge status={p.status} />
+                            <span className="text-xs text-slate-400 w-16 text-right">{p.provider || ''}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="px-6 py-8 text-center text-sm text-slate-400">Geen termijnen (backfill klant)</div>
-            )}
+                  )}
+
+                  {/* Legacy payments */}
+                  {legacyPayments.length > 0 && (
+                    <div className={`px-6 py-4 ${activePayments.length > 0 ? 'border-t border-slate-100' : ''}`}>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Athena historie</h3>
+                          <span className="inline-flex items-center text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-600">LEGACY</span>
+                        </div>
+                        <span className="text-xs font-semibold text-slate-700">{legacyPayments.length} betalingen · {eur(legacyTotal)}</span>
+                      </div>
+                      <div className="space-y-1">
+                        {legacyPayments.map(p => (
+                          <div key={p.id} className="flex items-center gap-3 rounded-lg px-4 py-2 bg-slate-50/70">
+                            <span className="text-xs font-bold text-slate-300 w-5">{p.payment_number}</span>
+                            <span className="text-sm text-slate-600 flex-1">{eur(p.amount)}</span>
+                            <span className="text-xs text-slate-400 w-24">{p.due_date}</span>
+                            <span className="inline-flex items-center text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-500">PAID</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {payments.length === 0 && (
+                    <div className="px-6 py-8 text-center text-sm text-slate-400">Geen betalingen</div>
+                  )}
+                </>
+              )
+            })()}
             {deals.length > 0 && (
               <div className="px-6 pb-5 pt-2 border-t border-slate-100">
                 {deals.map(d => (
