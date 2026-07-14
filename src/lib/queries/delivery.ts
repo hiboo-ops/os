@@ -1,5 +1,133 @@
 import { supabase } from '@/lib/supabase'
 
+// ── COACH WERKLIJST QUERIES ──
+
+export async function getPendingHomework() {
+  const { data } = await supabase
+    .from('homework_assignments')
+    .select(`
+      id, assignment_number, status, submitted_at, google_docs_url,
+      student:students(id, name, verdienmodel, client:clients(email))
+    `)
+    .eq('status', 'SUBMITTED')
+    .order('submitted_at', { ascending: true })
+
+  return (data || []) as unknown as PendingHomework[]
+}
+
+export async function getCheckInOverdue(daysThreshold: number = 14) {
+  const { data: students } = await supabase
+    .from('students')
+    .select(`
+      id, name, phase, verdienmodel, activity_status, last_check_in, coaching_hours,
+      client:clients(id, name, email, start_date, status)
+    `)
+    .not('client', 'is', null)
+
+  if (!students) return []
+
+  const now = new Date()
+  return (students as unknown as StudentWithRelations[])
+    .filter(s => {
+      if (s.client?.status === 'CHURNED') return false
+      if (!s.last_check_in) return true // never checked in
+      const last = new Date(s.last_check_in)
+      const daysSince = Math.ceil((now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24))
+      return daysSince >= daysThreshold
+    })
+    .map(s => {
+      const daysSince = s.last_check_in
+        ? Math.ceil((now.getTime() - new Date(s.last_check_in).getTime()) / (1000 * 60 * 60 * 24))
+        : 999
+      return { ...s, daysSinceContact: daysSince }
+    })
+    .sort((a, b) => b.daysSinceContact - a.daysSinceContact)
+}
+
+export async function getStudentsForWorkList() {
+  const { data } = await supabase
+    .from('students')
+    .select(`
+      id, name, phase, verdienmodel, activity_status, coaching_hours,
+      kick_off_date, certification_date, last_check_in, coach_notes,
+      typeform_homework_link, typeform_feedback_link, google_docs_link,
+      coach:coaches(id, name),
+      client:clients(id, name, email, start_date, program, status, upsell_status)
+    `)
+    .order('name')
+
+  if (!data) return []
+
+  // Count pending homework per student
+  const { data: pendingHw } = await supabase
+    .from('homework_assignments')
+    .select('student_id')
+    .eq('status', 'SUBMITTED')
+
+  const pendingByStudent = new Set((pendingHw || []).map(h => h.student_id))
+
+  // Count approved homework per student
+  const { data: allHw } = await supabase
+    .from('homework_assignments')
+    .select('student_id, status')
+
+  const hwStats: Record<string, { approved: number; total: number }> = {}
+  ;(allHw || []).forEach(h => {
+    if (!hwStats[h.student_id]) hwStats[h.student_id] = { approved: 0, total: 0 }
+    hwStats[h.student_id].total++
+    if (h.status === 'APPROVED') hwStats[h.student_id].approved++
+  })
+
+  // Get latest feedback per student
+  const { data: feedback } = await supabase
+    .from('feedback')
+    .select('client_id, score')
+    .order('date', { ascending: false })
+
+  const scoreByClient: Record<string, number> = {}
+  ;(feedback || []).forEach(f => {
+    if (f.client_id && !scoreByClient[f.client_id]) scoreByClient[f.client_id] = f.score
+  })
+
+  const now = new Date()
+  return (data as unknown as StudentWithRelations[]).map(s => {
+    const daysSinceContact = s.last_check_in
+      ? Math.ceil((now.getTime() - new Date(s.last_check_in).getTime()) / (1000 * 60 * 60 * 24))
+      : 999
+    const hw = hwStats[s.id] || { approved: 0, total: 0 }
+    return {
+      ...s,
+      daysSinceContact,
+      hwApproved: hw.approved,
+      hwTotal: hw.total,
+      hwPending: pendingByStudent.has(s.id),
+      latestScore: s.client?.id ? scoreByClient[s.client.id] ?? null : null,
+    }
+  })
+}
+
+export interface PendingHomework {
+  id: string
+  assignment_number: number
+  status: string
+  submitted_at: string | null
+  google_docs_url: string | null
+  student: {
+    id: string
+    name: string
+    verdienmodel: string | null
+    client: { email: string } | null
+  } | null
+}
+
+export interface WorkListStudent extends StudentWithRelations {
+  daysSinceContact: number
+  hwApproved: number
+  hwTotal: number
+  hwPending: boolean
+  latestScore: number | null
+}
+
 export async function getDeliveryStats() {
   const { data: students } = await supabase
     .from('students')

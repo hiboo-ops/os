@@ -20,7 +20,7 @@ export default function RootLayout({
       <body className="min-h-full bg-slate-50 text-slate-800">
         <Sidebar />
         <main className="md:ml-64 min-h-screen pt-14 md:pt-0">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="px-6 lg:px-10 py-8">
             {children}
           </div>
         </main>
