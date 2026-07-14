@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   BarChart3, Users, Target, DollarSign, GraduationCap,
   Megaphone, ClipboardCheck, Menu, X, LayoutDashboard,
-  Columns3, ListChecks, FileEdit, ChevronDown
+  Columns3, ListChecks, FileEdit, ChevronDown, BookOpen
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -21,6 +21,7 @@ const nav = [
       { href: '/delivery', label: 'Overview', icon: LayoutDashboard },
       { href: '/delivery/crm', label: 'CRM', icon: Columns3 },
       { href: '/delivery/werklijst', label: 'Werklijst', icon: ListChecks },
+      { href: '/delivery/course-only', label: 'Course Only', icon: BookOpen },
       { href: '/delivery/backfill', label: 'Backfill', icon: FileEdit },
     ],
   },
