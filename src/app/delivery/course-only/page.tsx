@@ -38,7 +38,7 @@ export default function CourseOnlyPage() {
           id, name, phase, activity_status, certification_date,
           client:clients!inner(id, name, email, phone, start_date, status, program)
         `)
-        .eq('clients.program', 'FUNDAMENT')
+        .or('program.eq.Independent Circle,program.eq.Athena Circle Basis', { referencedTable: 'clients' })
         .order('name')
 
       setStudents((data || []) as unknown as CourseStudent[])
@@ -62,7 +62,7 @@ export default function CourseOnlyPage() {
     <div>
       <div className="mb-8">
         <h1 className="text-xl font-semibold text-gray-900">Course Only</h1>
-        <p className="text-sm text-gray-500 mt-1">Studenten met het Fundament pakket</p>
+        <p className="text-sm text-gray-500 mt-1">Studenten met Independent Circle / Athena Circle Basis</p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
