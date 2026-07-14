@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getHomeworkForClient, getCheckInsForClient } from '@/lib/queries/clients'
 import { StatusBadge } from '@/components/status-badge'
+import { formatDate } from '@/lib/format'
 import { X, Save, Check, ExternalLink, Copy, Plus, Video, FileCheck, Clock, Circle, RotateCcw, AlertCircle, Award, MessageCircle, Link as LinkIcon, FileEdit, Star } from 'lucide-react'
 
 const vmLabels: Record<string, string> = { HIGH_TICKET_CLOSING: 'HIGH TICKET CLOSING', VA: 'VIRTUAL ASSISTANT', APPOINTMENT_SETTING: 'APPOINTMENT SETTING' }
@@ -219,7 +220,7 @@ export function StudentDetail({ student: s, onClose, onUpdate }: StudentDetailPr
                     <span className="text-xs font-bold text-slate-400 w-5">{hw.assignment_number}</span>
                     <div className="flex-1">
                       <span className="text-sm text-slate-700">Opdracht {hw.assignment_number}</span>
-                      {hw.reviewed_at && <span className="text-[10px] text-slate-400 ml-2">{new Date(hw.reviewed_at).toLocaleDateString('nl-NL')}</span>}
+                      {hw.reviewed_at && <span className="text-[10px] text-slate-400 ml-2">{formatDate(hw.reviewed_at)}</span>}
                     </div>
                     <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${color}`}>
                       <Icon className="w-3 h-3" /> {hw.status}
@@ -248,7 +249,7 @@ export function StudentDetail({ student: s, onClose, onUpdate }: StudentDetailPr
           {s.certification_date && (
             <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-3">
               <Award className="w-5 h-5 text-emerald-600" />
-              <span className="text-sm font-semibold text-emerald-700">Gecertificeerd op {s.certification_date}</span>
+              <span className="text-sm font-semibold text-emerald-700">Gecertificeerd op {formatDate(s.certification_date)}</span>
             </div>
           )}
         </div>
@@ -321,7 +322,7 @@ export function StudentDetail({ student: s, onClose, onUpdate }: StudentDetailPr
               {checkIns.map(ci => (
                 <div key={ci.id} className="bg-slate-50 rounded-lg px-4 py-3">
                   <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-xs text-slate-500">{ci.date}</span>
+                    <span className="text-xs text-slate-500">{formatDate(ci.date)}</span>
                     <span className="text-[10px] text-slate-400 bg-white px-2 py-0.5 rounded">{ci.type}</span>
                   </div>
                   {ci.notes && <p className="text-sm text-slate-700">{ci.notes}</p>}

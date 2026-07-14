@@ -6,13 +6,12 @@ import Link from 'next/link'
 import { getClientById, getStudentForClient, getPaymentsForClient, getDealsForClient, getFeedbackForClient, getHomeworkForClient, updateClientNotes } from '@/lib/queries/clients'
 import { getCheckInsForStudent } from '@/lib/queries/delivery'
 import { StatusBadge } from '@/components/status-badge'
+import { formatDate, formatDateShort, eur } from '@/lib/format'
 import { ArrowLeft, Pencil, MessageCircle, Mail, Phone, Calendar, Video, Star, CreditCard, FileCheck, Trophy, AlertTriangle, TrendingUp, Save, Check } from 'lucide-react'
 
 const vmLabels: Record<string, string> = { HIGH_TICKET_CLOSING: 'HIGH TICKET CLOSING', VA: 'VIRTUAL ASSISTANT', APPOINTMENT_SETTING: 'APPOINTMENT SETTING' }
 const activityDots: Record<string, string> = { GREEN: 'bg-emerald-400', YELLOW: 'bg-yellow-400', RED: 'bg-red-400' }
 const activityText: Record<string, string> = { GREEN: 'text-emerald-600', YELLOW: 'text-yellow-600', RED: 'text-red-600' }
-
-function eur(n: number | null | undefined) { return n != null ? '€ ' + n.toLocaleString('nl-NL') : '—' }
 function daysLeft(startDate: string | null) {
   if (!startDate) return null
   const end = new Date(startDate)
@@ -114,7 +113,7 @@ export default function ClientProfilePage() {
               <div className="flex items-center gap-4 mt-1.5 text-sm text-slate-500 flex-wrap">
                 {client.email && <span className="inline-flex items-center gap-1"><Mail className="w-3.5 h-3.5" /> {client.email}</span>}
                 {client.phone && <span className="inline-flex items-center gap-1"><Phone className="w-3.5 h-3.5" /> {client.phone}</span>}
-                {client.start_date && <span className="inline-flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {client.start_date}</span>}
+                {client.start_date && <span className="inline-flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {formatDate(client.start_date)}</span>}
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -202,8 +201,8 @@ export default function ClientProfilePage() {
 
                 {/* Quick stats */}
                 <div className="grid grid-cols-4 gap-3 text-center bg-slate-50 rounded-lg p-3">
-                  <div><div className="text-sm font-bold text-slate-900">{student.kick_off_date || '—'}</div><div className="text-[10px] text-slate-400">Kick-off</div></div>
-                  <div><div className="text-sm font-bold text-slate-900">{student.last_check_in || '—'}</div><div className="text-[10px] text-slate-400">Last check-in</div></div>
+                  <div><div className="text-sm font-bold text-slate-900">{formatDateShort(student.kick_off_date)}</div><div className="text-[10px] text-slate-400">Kick-off</div></div>
+                  <div><div className="text-sm font-bold text-slate-900">{formatDateShort(student.last_check_in)}</div><div className="text-[10px] text-slate-400">Last check-in</div></div>
                   <div><div className="text-sm font-bold text-slate-900">{student.coaching_hours || 0}h</div><div className="text-[10px] text-slate-400">Coaching</div></div>
                   <div><div className="text-sm font-bold text-slate-900">{checkIns.length}</div><div className="text-[10px] text-slate-400">Check-ins</div></div>
                 </div>
@@ -231,7 +230,7 @@ export default function ClientProfilePage() {
                           <div key={p.id} className={`flex items-center gap-3 rounded-lg px-4 py-2.5 ${p.status === 'PAID' ? 'bg-emerald-50/70' : p.status === 'OVERDUE' ? 'bg-red-50/70 ring-1 ring-red-200' : 'bg-blue-50/70 ring-1 ring-blue-200'}`}>
                             <span className="text-xs font-bold text-slate-400 w-5">{p.payment_number}</span>
                             <span className="text-sm text-slate-900 flex-1">{eur(p.amount)}</span>
-                            <span className="text-xs text-slate-400 w-24">{p.due_date}</span>
+                            <span className="text-xs text-slate-400 w-24">{formatDateShort(p.due_date)}</span>
                             <StatusBadge status={p.status} />
                             <span className="text-xs text-slate-400 w-16 text-right">{p.provider || ''}</span>
                           </div>
@@ -255,7 +254,7 @@ export default function ClientProfilePage() {
                           <div key={p.id} className="flex items-center gap-3 rounded-lg px-4 py-2 bg-slate-50/70">
                             <span className="text-xs font-bold text-slate-300 w-5">{p.payment_number}</span>
                             <span className="text-sm text-slate-600 flex-1">{eur(p.amount)}</span>
-                            <span className="text-xs text-slate-400 w-24">{p.due_date}</span>
+                            <span className="text-xs text-slate-400 w-24">{formatDateShort(p.due_date)}</span>
                             <span className="inline-flex items-center text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-500">PAID</span>
                           </div>
                         ))}
@@ -276,7 +275,7 @@ export default function ClientProfilePage() {
                     <div className="flex items-center gap-3">
                       <StatusBadge status={d.deal_type || 'FIRST DEAL'} />
                       <span className="text-sm text-slate-900 font-medium">{d.deal_name} — {eur(d.tcv)}</span>
-                      <span className="text-xs text-slate-400">geclosed door {d.closer?.name || '—'} op {d.date || '—'}</span>
+                      <span className="text-xs text-slate-400">geclosed door {d.closer?.name || '—'} op {formatDate(d.date)}</span>
                     </div>
                     <StatusBadge status={d.stage || ''} />
                   </div>
@@ -298,7 +297,7 @@ export default function ClientProfilePage() {
                     {checkIns.slice(0, 5).map(ci => (
                       <div key={ci.id} className="rounded-lg px-3 py-2.5 bg-slate-50">
                         <div className="flex justify-between mb-0.5">
-                          <span className="text-xs text-slate-500">{ci.date}</span>
+                          <span className="text-xs text-slate-500">{formatDate(ci.date)}</span>
                           <span className="text-[10px] bg-white px-2 py-0.5 rounded text-slate-400">{ci.type}</span>
                         </div>
                         {ci.notes && <p className="text-xs text-slate-600">{ci.notes}</p>}
@@ -314,7 +313,7 @@ export default function ClientProfilePage() {
                     {feedback.slice(0, 5).map(f => (
                       <div key={f.id} className="rounded-lg px-3 py-2.5 bg-slate-50">
                         <div className="flex justify-between mb-0.5">
-                          <span className="text-xs text-slate-500">{f.date}</span>
+                          <span className="text-xs text-slate-500">{formatDate(f.date)}</span>
                           <span className={`text-sm font-bold ${(f.score || 0) >= 8 ? 'text-emerald-600' : (f.score || 0) >= 6 ? 'text-yellow-600' : 'text-red-600'}`}>{f.score}/10</span>
                         </div>
                         {f.comments && <p className="text-xs text-slate-600">{f.comments}</p>}
@@ -340,7 +339,7 @@ export default function ClientProfilePage() {
                 <div className="flex justify-between"><dt className="text-slate-500">Provider</dt><dd className="text-slate-700">{client.payment_provider || '—'}</dd></div>
                 <div className="flex justify-between"><dt className="text-slate-500">Upsell</dt><dd><StatusBadge status={client.upsell_status || 'N/A'} /></dd></div>
                 {client.start_date && (
-                  <div className="flex justify-between"><dt className="text-slate-500">Traject</dt><dd className="text-slate-900 font-medium">{client.start_date}</dd></div>
+                  <div className="flex justify-between"><dt className="text-slate-500">Traject</dt><dd className="text-slate-900 font-medium">{formatDate(client.start_date)}</dd></div>
                 )}
               </dl>
               {days != null && (

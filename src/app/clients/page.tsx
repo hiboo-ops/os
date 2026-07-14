@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { getClientList } from '@/lib/queries/clients'
 import { KpiCard } from '@/components/kpi-card'
 import { StatusBadge } from '@/components/status-badge'
+import { formatDate } from '@/lib/format'
 import { Search, ArrowUpDown } from 'lucide-react'
 
 export default function ClientsPage() {
@@ -97,7 +98,7 @@ export default function ClientsPage() {
                   <td className="px-4 py-3 text-slate-500">{c.email}</td>
                   <td className="px-4 py-3"><StatusBadge status={c.status} /></td>
                   <td className="px-4 py-3 text-slate-600">{c.program || '—'}</td>
-                  <td className="px-4 py-3 text-slate-500">{c.start_date || '—'}</td>
+                  <td className="px-4 py-3 text-slate-500">{formatDate(c.start_date)}</td>
                   <td className="px-4 py-3">{c.upsell_status && c.upsell_status !== 'N/A' ? <StatusBadge status={c.upsell_status} /> : <span className="text-slate-300">—</span>}</td>
                 </tr>
               ))}

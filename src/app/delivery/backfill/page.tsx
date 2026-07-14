@@ -3,6 +3,7 @@
 import { supabase } from '@/lib/supabase'
 import { useEffect, useState, useCallback } from 'react'
 import { StatusBadge } from '@/components/status-badge'
+import { formatDate } from '@/lib/format'
 import { ChevronLeft, ChevronRight, Check, AlertTriangle, Search, FileCheck, Star, MessageCircle, Award, Calendar } from 'lucide-react'
 
 interface Student {
@@ -254,7 +255,7 @@ export default function BackfillPage() {
               <dl className="space-y-2.5 text-sm">
                 <div className="flex justify-between"><dt className="text-slate-500">Telefoon</dt><dd className="text-slate-900">{current.client?.phone || '—'}</dd></div>
                 <div className="flex justify-between"><dt className="text-slate-500">Programma</dt><dd className="text-slate-900">{current.client?.program || '—'}</dd></div>
-                <div className="flex justify-between"><dt className="text-slate-500">Startdatum</dt><dd className="text-slate-900">{current.client?.start_date || '—'}</dd></div>
+                <div className="flex justify-between"><dt className="text-slate-500">Startdatum</dt><dd className="text-slate-900">{formatDate(current.client?.start_date)}</dd></div>
                 <div className="flex justify-between"><dt className="text-slate-500">Status</dt><dd><StatusBadge status={current.client?.status || 'UNKNOWN'} /></dd></div>
               </dl>
             </div>
@@ -288,7 +289,7 @@ export default function BackfillPage() {
               </div>
               {current.certification_date && (
                 <div className="mt-2 text-xs text-violet-600 bg-violet-50 rounded-lg px-3 py-2 text-center">
-                  Gecertificeerd op {current.certification_date}
+                  Gecertificeerd op {formatDate(current.certification_date)}
                 </div>
               )}
             </div>
