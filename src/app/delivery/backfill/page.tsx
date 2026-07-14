@@ -3,8 +3,8 @@
 import { supabase } from '@/lib/supabase'
 import { useEffect, useState, useCallback } from 'react'
 import { Badge } from '@/components/ui/badge'
-import { formatDate } from '@/lib/format'
-import { ChevronLeft, ChevronRight, Check, AlertTriangle, Search, FileCheck, Star, MessageCircle, Award, Calendar } from 'lucide-react'
+import { formatDate, eur } from '@/lib/format'
+import { ChevronLeft, ChevronRight, Check, AlertTriangle, Search, FileCheck, Star, MessageCircle, Award, Calendar, CreditCard } from 'lucide-react'
 
 const iconProps = { strokeWidth: 1.75 } as const
 
@@ -36,6 +36,9 @@ interface Student {
   hwTotal: number
   latestScore: number | null
   checkInCount: number
+  totalPaid: number
+  totalValue: number
+  paymentCount: number
 }
 
 interface Coach {
@@ -114,12 +117,26 @@ export default function BackfillPage() {
       ciCount[c.student_id] = (ciCount[c.student_id] || 0) + 1
     })
 
+    // Get payment stats per client
+    const { data: allPayments } = await supabase.from('payments').select('client_id, amount, paid')
+    const payStats: Record<string, { totalPaid: number; totalValue: number; count: number }> = {}
+    ;(allPayments || []).forEach((p: { client_id: string; amount: number; paid: boolean }) => {
+      if (!p.client_id) return
+      if (!payStats[p.client_id]) payStats[p.client_id] = { totalPaid: 0, totalValue: 0, count: 0 }
+      payStats[p.client_id].totalValue += p.amount || 0
+      payStats[p.client_id].count++
+      if (p.paid) payStats[p.client_id].totalPaid += p.amount || 0
+    })
+
     const enriched = rawStudents.map(s => ({
       ...s,
       hwApproved: hwStats[s.id]?.approved || 0,
       hwTotal: hwStats[s.id]?.total || 0,
       latestScore: s.client?.id ? scoreByClient[s.client.id] ?? null : null,
       checkInCount: ciCount[s.id] || 0,
+      totalPaid: s.client?.id ? payStats[s.client.id]?.totalPaid ?? 0 : 0,
+      totalValue: s.client?.id ? payStats[s.client.id]?.totalValue ?? 0 : 0,
+      paymentCount: s.client?.id ? payStats[s.client.id]?.count ?? 0 : 0,
     }))
 
     setStudents(enriched)
@@ -279,14 +296,19 @@ export default function BackfillPage() {
                   <div className="text-[11px] text-gray-500">Feedback</div>
                 </div>
                 <div className="bg-gray-50 rounded-lg p-3 text-center">
+                  <CreditCard className="w-4 h-4 text-emerald-500 mx-auto mb-1" {...iconProps} />
+                  <div className="text-lg font-semibold text-gray-900 tabular-nums">{eur(current.totalPaid)}</div>
+                  <div className="text-[11px] text-gray-500">Betaald ({current.paymentCount}x)</div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3 text-center">
                   <MessageCircle className="w-4 h-4 text-accent-700 mx-auto mb-1" {...iconProps} />
                   <div className="text-lg font-semibold text-gray-900 tabular-nums">{current.checkInCount}</div>
                   <div className="text-[11px] text-gray-500">Check-ins</div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-3 text-center">
+                <div className="bg-gray-50 rounded-lg p-3 text-center col-span-2">
                   <Award className="w-4 h-4 text-violet-500 mx-auto mb-1" {...iconProps} />
-                  <div className="text-lg font-semibold text-gray-900">{current.certification_date ? '✓' : '—'}</div>
-                  <div className="text-[11px] text-gray-500">Certificaat</div>
+                  <div className="text-lg font-semibold text-gray-900">{current.certification_date ? '✓ Gecertificeerd' : '—'}</div>
+                  <div className="text-[11px] text-gray-500">{current.certification_date ? formatDate(current.certification_date) : 'Certificaat'}</div>
                 </div>
               </div>
               {current.certification_date && (

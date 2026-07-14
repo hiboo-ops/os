@@ -89,12 +89,30 @@ export async function getStudentsForWorkList() {
     if (f.client_id && !scoreByClient[f.client_id]) scoreByClient[f.client_id] = f.score
   })
 
+  // Get payment data per client
+  const { data: allPayments } = await supabase
+    .from('payments')
+    .select('client_id, amount, paid, legacy')
+
+  const paymentStats: Record<string, { totalPaid: number; totalValue: number; count: number; paidCount: number }> = {}
+  ;(allPayments || []).forEach(p => {
+    if (!p.client_id) return
+    if (!paymentStats[p.client_id]) paymentStats[p.client_id] = { totalPaid: 0, totalValue: 0, count: 0, paidCount: 0 }
+    paymentStats[p.client_id].totalValue += p.amount || 0
+    paymentStats[p.client_id].count++
+    if (p.paid) {
+      paymentStats[p.client_id].totalPaid += p.amount || 0
+      paymentStats[p.client_id].paidCount++
+    }
+  })
+
   const now = new Date()
   return (data as unknown as StudentWithRelations[]).map(s => {
     const daysSinceContact = s.last_check_in
       ? Math.ceil((now.getTime() - new Date(s.last_check_in).getTime()) / (1000 * 60 * 60 * 24))
       : 999
     const hw = hwStats[s.id] || { approved: 0, total: 0 }
+    const payments = s.client?.id ? paymentStats[s.client.id] || null : null
     return {
       ...s,
       daysSinceContact,
@@ -102,6 +120,10 @@ export async function getStudentsForWorkList() {
       hwTotal: hw.total,
       hwPending: pendingByStudent.has(s.id),
       latestScore: s.client?.id ? scoreByClient[s.client.id] ?? null : null,
+      totalPaid: payments?.totalPaid ?? 0,
+      totalValue: payments?.totalValue ?? 0,
+      paymentCount: payments?.count ?? 0,
+      paidCount: payments?.paidCount ?? 0,
     }
   })
 }
@@ -126,6 +148,10 @@ export interface WorkListStudent extends StudentWithRelations {
   hwTotal: number
   hwPending: boolean
   latestScore: number | null
+  totalPaid: number
+  totalValue: number
+  paymentCount: number
+  paidCount: number
 }
 
 export async function getDeliveryStats() {
