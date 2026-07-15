@@ -31,6 +31,8 @@ interface Student {
     start_date: string | null
     program: string | null
     status: string
+    tcv: number | null
+    source: string | null
   }
   hwApproved: number
   hwTotal: number
@@ -76,6 +78,7 @@ export default function BackfillPage() {
     coach_id: '' as string,
     kick_off_date: '' as string,
     last_check_in: '' as string,
+    deal_value: '' as string,
     coach_notes: '' as string,
     typeform_homework_link: '' as string,
     typeform_feedback_link: '' as string,
@@ -87,7 +90,7 @@ export default function BackfillPage() {
     const [studentsRes, coachesRes] = await Promise.all([
       supabase
         .from('students')
-        .select('id, name, phase, verdienmodel, activity_status, coach_id, kick_off_date, last_check_in, certification_date, coaching_hours, coach_notes, typeform_homework_link, typeform_feedback_link, google_docs_link, client:clients(id, name, email, phone, start_date, program, status)')
+        .select('id, name, phase, verdienmodel, activity_status, coach_id, kick_off_date, last_check_in, certification_date, coaching_hours, coach_notes, typeform_homework_link, typeform_feedback_link, google_docs_link, client:clients(id, name, email, phone, start_date, program, status, tcv, source)')
         .order('name'),
       supabase.from('coaches').select('id, name, status').order('name'),
     ])
@@ -146,9 +149,11 @@ export default function BackfillPage() {
 
   useEffect(() => { loadData() }, [loadData])
 
+  const isComplete = (s: Student) => !!(s.coach_id && s.verdienmodel && s.last_check_in && s.client?.tcv)
+
   const filtered = students.filter(s => {
     if (filter === 'incomplete') {
-      if (s.coach_id && s.verdienmodel) return false
+      if (isComplete(s)) return false
     }
     if (search) {
       const q = search.toLowerCase()
@@ -158,7 +163,7 @@ export default function BackfillPage() {
   })
 
   const current = filtered[currentIndex]
-  const totalIncomplete = students.filter(s => !s.coach_id || !s.verdienmodel).length
+  const totalIncomplete = students.filter(s => !isComplete(s)).length
   const totalComplete = students.length - totalIncomplete
   const pct = students.length > 0 ? Math.round((totalComplete / students.length) * 100) : 0
 
@@ -171,6 +176,7 @@ export default function BackfillPage() {
       coach_id: current.coach_id || '',
       kick_off_date: current.kick_off_date || current.client?.start_date || '',
       last_check_in: current.last_check_in || '',
+      deal_value: current.client?.tcv?.toString() || '',
       coach_notes: current.coach_notes || '',
       typeform_homework_link: current.typeform_homework_link || '',
       typeform_feedback_link: current.typeform_feedback_link || '',
@@ -199,10 +205,15 @@ export default function BackfillPage() {
         google_docs_link: form.google_docs_link || null,
       }),
     })
+    // Update TCV on client if deal_value provided
+    if (form.deal_value && current.client?.id) {
+      await supabase.from('clients').update({ tcv: parseFloat(form.deal_value) }).eq('id', current.client.id)
+    }
+
     setSaving(false)
     setSaved(true)
     setStudents(prev => prev.map(s =>
-      s.id === current.id ? { ...s, ...form } as Student : s
+      s.id === current.id ? { ...s, ...form, client: s.client ? { ...s.client, tcv: form.deal_value ? parseFloat(form.deal_value) : s.client.tcv } : s.client } as Student : s
     ))
   }
 
@@ -276,6 +287,8 @@ export default function BackfillPage() {
                 <div className="flex justify-between"><dt className="text-gray-500">Programma</dt><dd className="text-gray-900">{current.client?.program || '—'}</dd></div>
                 <div className="flex justify-between"><dt className="text-gray-500">Startdatum</dt><dd className="text-gray-900">{formatDate(current.client?.start_date)}</dd></div>
                 <div className="flex justify-between"><dt className="text-gray-500">Status</dt><dd><Badge status={current.client?.status || 'UNKNOWN'} /></dd></div>
+                <div className="flex justify-between"><dt className="text-gray-500">Bron</dt><dd><Badge status={current.client?.source || 'UNKNOWN'} /></dd></div>
+                <div className="flex justify-between"><dt className="text-gray-500">Deal value</dt><dd className="text-gray-900 tabular-nums font-medium">{current.client?.tcv ? eur(current.client.tcv) : '—'}</dd></div>
               </dl>
             </div>
 
@@ -322,6 +335,8 @@ export default function BackfillPage() {
             <div className="space-y-1.5">
               {!current.coach_id && <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2"><AlertTriangle className="w-3.5 h-3.5" {...iconProps} /> Coach ontbreekt</div>}
               {!current.verdienmodel && <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2"><AlertTriangle className="w-3.5 h-3.5" {...iconProps} /> Verdienmodel ontbreekt</div>}
+              {!current.client?.tcv && <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2"><AlertTriangle className="w-3.5 h-3.5" {...iconProps} /> Deal value ontbreekt</div>}
+              {!current.last_check_in && <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2"><AlertTriangle className="w-3.5 h-3.5" {...iconProps} /> Laatste check-in ontbreekt</div>}
               {current.coach_notes && (
                 <div className="bg-gray-50 rounded-lg px-3 py-2">
                   <div className="text-[11px] text-gray-400 mb-0.5">Oude notitie</div>
@@ -389,12 +404,20 @@ export default function BackfillPage() {
                   className="mt-1.5 w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700" />
               </div>
 
+              {/* Deal value */}
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Deal value (€) *</label>
+                <input type="number" step="0.01" value={form.deal_value} onChange={e => setForm({ ...form, deal_value: e.target.value })}
+                  placeholder="bijv. 3000"
+                  className={`mt-1.5 w-full text-sm border rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700 tabular-nums ${!form.deal_value ? 'border-amber-300 bg-amber-50/50' : 'border-gray-200'}`} />
+              </div>
+
               {/* Laatste check-in */}
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Laatste check-in</label>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Laatste check-in *</label>
                 <div className="mt-1.5 flex gap-2">
                   <input type="date" value={form.last_check_in} onChange={e => setForm({ ...form, last_check_in: e.target.value })}
-                    className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700" />
+                    className={`flex-1 text-sm border rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700 ${!form.last_check_in ? 'border-amber-300 bg-amber-50/50' : 'border-gray-200'}`} />
                   <button onClick={markCheckIn} className="px-3 py-2.5 bg-accent-700 text-white rounded-lg text-xs font-medium hover:bg-accent-800 inline-flex items-center gap-1 shrink-0">
                     <Calendar className="w-3.5 h-3.5" {...iconProps} /> Vandaag
                   </button>
