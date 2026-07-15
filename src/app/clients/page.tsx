@@ -81,8 +81,8 @@ export default function ClientsPage() {
                 <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Programma</th>
+                <th className="px-4 py-3">Bron</th>
                 <th className="px-4 py-3">Startdatum</th>
-                <th className="px-4 py-3">Upsell</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -101,8 +101,8 @@ export default function ClientsPage() {
                   <td className="px-4 py-3 text-gray-500">{c.email}</td>
                   <td className="px-4 py-3"><Badge status={c.status} /></td>
                   <td className="px-4 py-3 text-gray-600">{c.program || '—'}</td>
+                  <td className="px-4 py-3">{c.source ? <Badge status={c.source} /> : <span className="text-gray-300">—</span>}</td>
                   <td className="px-4 py-3 text-gray-500">{formatDate(c.start_date)}</td>
-                  <td className="px-4 py-3">{c.upsell_status && c.upsell_status !== 'N/A' ? <Badge status={c.upsell_status} /> : <span className="text-gray-300">—</span>}</td>
                 </tr>
               ))}
             </tbody>

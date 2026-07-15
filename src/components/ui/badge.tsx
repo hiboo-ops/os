@@ -7,6 +7,10 @@ const styles: Record<string, string> = {
   CHURNED: 'bg-red-50 text-red-700 border-red-200',
   BLOCKED: 'bg-gray-100 text-gray-600 border-gray-200',
   BACKFILL: 'bg-violet-50 text-violet-600 border-violet-200',
+  'ATHENA CIRCLE': 'bg-indigo-50 text-indigo-600 border-indigo-200',
+  'HIBOO': 'bg-gray-900 text-white border-gray-900',
+  'SALES-PARTNER': 'bg-sky-50 text-sky-700 border-sky-200',
+  'SALES-QUIZ': 'bg-cyan-50 text-cyan-700 border-cyan-200',
 
   // Upsell
   'N/A': 'bg-gray-50 text-gray-500 border-gray-200',
