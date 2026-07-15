@@ -224,7 +224,15 @@ export default function BackfillPage() {
     setSaving(false)
     setSaved(true)
     setStudents(prev => prev.map(s =>
-      s.id === current.id ? { ...s, ...form, client: s.client ? { ...s.client, tcv: form.deal_value ? parseFloat(form.deal_value) : s.client.tcv } : s.client } as Student : s
+      s.id === current.id ? {
+        ...s, ...form,
+        client: s.client ? {
+          ...s.client,
+          tcv: form.deal_value ? parseFloat(form.deal_value) : s.client.tcv,
+          client_satisfaction: form.satisfaction ? parseFloat(form.satisfaction) : s.client.client_satisfaction,
+          phone: form.phone || s.client.phone,
+        } : s.client
+      } as Student : s
     ))
   }
 
