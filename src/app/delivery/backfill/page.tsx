@@ -294,7 +294,14 @@ export default function BackfillPage() {
                 </div>
               </div>
               <dl className="space-y-2.5 text-sm">
-                <div className="flex justify-between"><dt className="text-gray-500">Telefoon</dt><dd className="text-gray-900">{current.client?.phone || '—'}</dd></div>
+                <div className="flex justify-between items-center">
+                  <dt className="text-gray-500">Telefoon *</dt>
+                  <dd>
+                    <input type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
+                      placeholder="+31 6..."
+                      className={`text-sm text-right border rounded-md px-2 py-1 w-40 focus:outline-none focus:ring-2 focus:ring-accent-700 ${!form.phone ? 'border-amber-300 bg-amber-50/50' : 'border-gray-200'}`} />
+                  </dd>
+                </div>
                 <div className="flex justify-between"><dt className="text-gray-500">Programma</dt><dd className="text-gray-900">{current.client?.program || '—'}</dd></div>
                 <div className="flex justify-between"><dt className="text-gray-500">Startdatum</dt><dd className="text-gray-900">{formatDate(current.client?.start_date)}</dd></div>
                 <div className="flex justify-between"><dt className="text-gray-500">Status</dt><dd><Badge status={current.client?.status || 'UNKNOWN'} /></dd></div>
@@ -383,14 +390,6 @@ export default function BackfillPage() {
                   <option value="">— Selecteer —</option>
                   {VERDIENMODELLEN.map(vm => <option key={vm} value={vm}>{vmLabels[vm]}</option>)}
                 </select>
-              </div>
-
-              {/* Telefoon */}
-              <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Telefoonnummer *</label>
-                <input type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
-                  placeholder="+31 6 12345678"
-                  className={`mt-1.5 w-full text-sm border rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700 ${!form.phone ? 'border-amber-300 bg-amber-50/50' : 'border-gray-200'}`} />
               </div>
 
               {/* Fase */}
