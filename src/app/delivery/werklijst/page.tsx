@@ -272,7 +272,7 @@ export default function DeliveryPage() {
               <div className="w-10 text-center shrink-0">VM</div>
               <div className="w-8 text-center shrink-0">Fase</div>
               <div className="w-10 text-center shrink-0">HW</div>
-              <div className="w-8 text-center shrink-0">Score</div>
+              <div className="w-12 text-center shrink-0">Tevr.</div>
               <div className="w-20 text-right shrink-0">Betaald</div>
               <div className="w-16 text-right shrink-0">Contact</div>
               <div className="w-4 shrink-0"></div>
@@ -302,8 +302,8 @@ export default function DeliveryPage() {
                     </span>
                     <span className="text-[11px] text-gray-500 w-8 text-center shrink-0">{phaseShort[s.phase || ''] || '?'}</span>
                     <span className="text-[11px] text-gray-500 w-10 text-center shrink-0 tabular-nums">{s.hwApproved}/{Math.max(s.hwTotal, 10)}</span>
-                    <span className={`text-[11px] w-8 text-center shrink-0 tabular-nums ${(s.latestScore ?? 0) >= 8 ? 'text-emerald-600 font-medium' : (s.latestScore ?? 0) >= 6 ? 'text-yellow-600' : s.latestScore ? 'text-red-600' : 'text-gray-300'}`}>
-                      {s.latestScore ?? '—'}
+                    <span className={`text-[11px] w-12 text-center shrink-0 tabular-nums ${(s.client?.client_satisfaction ?? 0) >= 8 ? 'text-emerald-600 font-medium' : (s.client?.client_satisfaction ?? 0) >= 6 ? 'text-amber-600' : s.client?.client_satisfaction ? 'text-red-600' : 'text-gray-300'}`}>
+                      {s.client?.client_satisfaction ?? '—'}
                     </span>
                     <span className="text-[11px] text-gray-500 w-20 text-right shrink-0 tabular-nums">
                       {s.totalPaid > 0 ? eur(s.totalPaid) : '—'}

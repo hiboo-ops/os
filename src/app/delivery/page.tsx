@@ -48,8 +48,8 @@ export default function DeliveryOverview() {
         <KpiCard label="Fase 1" value={stats.phase1} caption="leren" />
         <KpiCard label="Fase 2" value={stats.phase2} caption="opdrachten" />
         <KpiCard label="Fase 3" value={stats.phase3} caption="opdrachtgevers" />
+        <KpiCard label="Tevredenheid" value={stats.avgSatisfaction ?? '—'} captionColor={stats.avgSatisfaction && stats.avgSatisfaction >= 8 ? 'success' : stats.avgSatisfaction && stats.avgSatisfaction >= 6 ? 'warning' : 'default'} />
         <KpiCard label="Needs attention" value={stats.needsAttention} caption={`${stats.yellow} yellow`} captionColor={stats.needsAttention > 0 ? 'danger' : 'default'} />
-        <KpiCard label="Backfill" value={`${pct}%`} caption={`${incomplete} zonder coach`} captionColor={pct < 50 ? 'warning' : 'success'} />
       </div>
 
       {/* Quick links */}

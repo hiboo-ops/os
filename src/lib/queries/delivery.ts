@@ -52,7 +52,7 @@ export async function getStudentsForWorkList() {
       kick_off_date, certification_date, last_check_in, coach_notes,
       typeform_homework_link, typeform_feedback_link, google_docs_link,
       coach:coaches(id, name),
-      client:clients(id, name, email, start_date, program, status, upsell_status)
+      client:clients(id, name, email, start_date, program, status, upsell_status, client_satisfaction)
     `)
     .order('name')
 
@@ -157,7 +157,7 @@ export interface WorkListStudent extends StudentWithRelations {
 export async function getDeliveryStats() {
   const { data: students } = await supabase
     .from('students')
-    .select('id, phase, verdienmodel, coach_id, activity_status')
+    .select('id, phase, verdienmodel, coach_id, activity_status, client:clients(client_satisfaction)')
 
   const all = students || []
   return {
@@ -174,6 +174,12 @@ export async function getDeliveryStats() {
     htc: all.filter(s => s.verdienmodel === 'HIGH_TICKET_CLOSING').length,
     va: all.filter(s => s.verdienmodel === 'VA').length,
     as: all.filter(s => s.verdienmodel === 'APPOINTMENT_SETTING').length,
+    avgSatisfaction: (() => {
+      const withScore = all.filter(s => (s as unknown as { client: { client_satisfaction: number | null } | null }).client?.client_satisfaction)
+      if (withScore.length === 0) return null
+      const sum = withScore.reduce((acc, s) => acc + ((s as unknown as { client: { client_satisfaction: number } }).client.client_satisfaction || 0), 0)
+      return Math.round((sum / withScore.length) * 10) / 10
+    })(),
   }
 }
 
@@ -216,7 +222,7 @@ export async function getStudentsForPhaseBoard(coachId?: string) {
       kick_off_date, certification_date, last_check_in, next_check_in, coach_notes,
       typeform_homework_link, typeform_feedback_link, google_docs_link,
       coach:coaches(id, name),
-      client:clients(id, name, email, start_date, program, status, upsell_status)
+      client:clients(id, name, email, start_date, program, status, upsell_status, client_satisfaction)
     `)
     .order('name')
 
@@ -313,5 +319,6 @@ export interface StudentWithRelations {
     program: string | null
     status: string
     upsell_status: string | null
+    client_satisfaction: number | null
   } | null
 }
