@@ -81,6 +81,7 @@ export default function BackfillPage() {
     last_check_in: '' as string,
     deal_value: '' as string,
     satisfaction: '' as string,
+    phone: '' as string,
     coach_notes: '' as string,
     typeform_homework_link: '' as string,
     typeform_feedback_link: '' as string,
@@ -151,7 +152,7 @@ export default function BackfillPage() {
 
   useEffect(() => { loadData() }, [loadData])
 
-  const isComplete = (s: Student) => !!(s.coach_id && s.verdienmodel && s.last_check_in && s.client?.tcv && s.client?.client_satisfaction)
+  const isComplete = (s: Student) => !!(s.coach_id && s.verdienmodel && s.last_check_in && s.client?.tcv && s.client?.client_satisfaction && s.client?.phone)
 
   const filtered = students.filter(s => {
     if (filter === 'incomplete') {
@@ -180,6 +181,7 @@ export default function BackfillPage() {
       last_check_in: current.last_check_in || '',
       deal_value: current.client?.tcv?.toString() || '',
       satisfaction: current.client?.client_satisfaction?.toString() || '',
+      phone: current.client?.phone || '',
       coach_notes: current.coach_notes || '',
       typeform_homework_link: current.typeform_homework_link || '',
       typeform_feedback_link: current.typeform_feedback_link || '',
@@ -213,6 +215,7 @@ export default function BackfillPage() {
       const clientUpdate: Record<string, unknown> = {}
       if (form.deal_value) clientUpdate.tcv = parseFloat(form.deal_value)
       if (form.satisfaction) clientUpdate.client_satisfaction = parseFloat(form.satisfaction)
+      if (form.phone) clientUpdate.phone = form.phone
       if (Object.keys(clientUpdate).length > 0) {
         await supabase.from('clients').update(clientUpdate).eq('id', current.client.id)
       }
@@ -346,6 +349,7 @@ export default function BackfillPage() {
               {!current.client?.tcv && <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2"><AlertTriangle className="w-3.5 h-3.5" {...iconProps} /> Deal value ontbreekt</div>}
               {!current.last_check_in && <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2"><AlertTriangle className="w-3.5 h-3.5" {...iconProps} /> Laatste check-in ontbreekt</div>}
               {!current.client?.client_satisfaction && <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2"><AlertTriangle className="w-3.5 h-3.5" {...iconProps} /> Tevredenheid ontbreekt</div>}
+              {!current.client?.phone && <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2"><AlertTriangle className="w-3.5 h-3.5" {...iconProps} /> Telefoonnummer ontbreekt</div>}
               {current.coach_notes && (
                 <div className="bg-gray-50 rounded-lg px-3 py-2">
                   <div className="text-[11px] text-gray-400 mb-0.5">Oude notitie</div>
@@ -379,6 +383,14 @@ export default function BackfillPage() {
                   <option value="">— Selecteer —</option>
                   {VERDIENMODELLEN.map(vm => <option key={vm} value={vm}>{vmLabels[vm]}</option>)}
                 </select>
+              </div>
+
+              {/* Telefoon */}
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Telefoonnummer *</label>
+                <input type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
+                  placeholder="+31 6 12345678"
+                  className={`mt-1.5 w-full text-sm border rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700 ${!form.phone ? 'border-amber-300 bg-amber-50/50' : 'border-gray-200'}`} />
               </div>
 
               {/* Fase */}
