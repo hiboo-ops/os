@@ -28,6 +28,9 @@ export interface Lead {
   attempt_count: number
   last_attempt_at: string | null
   time_to_call_minutes: number | null
+  lead_id: string | null
+  sla_deadline: string | null
+  sla_met: boolean | null
   creator: { id: string; name: string } | null
   triage_caller: { id: string; name: string } | null
   closer: { id: string; name: string } | null

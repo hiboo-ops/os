@@ -13,7 +13,13 @@ import { useState } from 'react'
 const nav = [
   { href: '/', label: 'Dashboard', icon: BarChart3 },
   { href: '/clients', label: 'Clients', icon: Users },
-  { href: '/leads', label: 'Leads', icon: Target },
+  {
+    href: '/leads', label: 'Leads', icon: Target,
+    children: [
+      { href: '/leads', label: 'Board', icon: Kanban },
+      { href: '/leads/analytics', label: 'Analytics', icon: BarChart3 },
+    ],
+  },
   {
     href: '/sales', label: 'Sales', icon: Phone,
     children: [
@@ -44,6 +50,7 @@ export function Sidebar() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     '/delivery': pathname.startsWith('/delivery'),
     '/sales': pathname.startsWith('/sales'),
+    '/leads': pathname.startsWith('/leads'),
   })
   const toggleExpanded = (href: string) => setExpanded(prev => ({ ...prev, [href]: !prev[href] }))
 
