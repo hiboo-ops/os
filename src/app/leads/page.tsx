@@ -464,7 +464,7 @@ function CallActionModal({ lead, type: initialType, onClose, onDone }: {
         {view === 'answered' && (
           <div className="space-y-4">
             <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Resultaat</label>
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Result</label>
               <select value={nextStage} onChange={e => setNextStage(e.target.value)}
                 className="mt-1.5 w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700">
                 <option value="FOLLOW UP">FOLLOW UP</option>
