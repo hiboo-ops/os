@@ -12,18 +12,18 @@ const iconProps = { strokeWidth: 1.75 } as const
 
 // Pipeline columns in order
 const STAGES: { key: CallResult; label: string; color: string; borderColor: string }[] = [
-  { key: 'NEW',             label: 'New',             color: 'bg-gray-50 text-gray-700',     borderColor: 'border-l-gray-400' },
-  { key: 'RESCHEDULE',      label: 'Reschedule',      color: 'bg-amber-50 text-amber-700',   borderColor: 'border-l-amber-400' },
-  { key: 'CONTACTED',       label: 'Contacted',       color: 'bg-sky-50 text-sky-700',       borderColor: 'border-l-sky-400' },
-  { key: 'PRE CALL',        label: 'Pre Call',        color: 'bg-blue-50 text-blue-700',     borderColor: 'border-l-blue-400' },
-  { key: 'OFFER ACCEPTED',  label: 'Offer Accepted',  color: 'bg-violet-50 text-violet-700', borderColor: 'border-l-violet-400' },
-  { key: 'FOLLOW UP',       label: 'Follow Up',       color: 'bg-orange-50 text-orange-700', borderColor: 'border-l-orange-400' },
-  { key: 'LTFU',            label: 'LTFU',            color: 'bg-rose-50 text-rose-700',     borderColor: 'border-l-rose-400' },
-  { key: 'DEAL',            label: 'Deal',            color: 'bg-emerald-50 text-emerald-700', borderColor: 'border-l-emerald-500' },
-  { key: 'NO SHOW',         label: 'No Show',         color: 'bg-red-50 text-red-700',       borderColor: 'border-l-red-400' },
-  { key: 'NO DEAL',         label: 'No Deal',         color: 'bg-red-50 text-red-600',       borderColor: 'border-l-red-300' },
-  { key: 'BROKE',           label: 'Broke',           color: 'bg-gray-50 text-gray-600',     borderColor: 'border-l-gray-300' },
-  { key: 'CANCEL',          label: 'Cancel',          color: 'bg-gray-50 text-gray-500',     borderColor: 'border-l-gray-300' },
+  { key: 'CALL BOOKED',         label: 'CALL BOOKED',         color: 'bg-blue-50 text-blue-700',       borderColor: 'border-l-blue-400' },
+  { key: 'RESCHEDULE',          label: 'RESCHEDULE',          color: 'bg-amber-50 text-amber-700',     borderColor: 'border-l-amber-400' },
+  { key: 'FOLLOW UP',           label: 'FOLLOW UP',           color: 'bg-orange-50 text-orange-700',   borderColor: 'border-l-orange-400' },
+  { key: 'FOLLOW UP LONG TERM', label: 'FOLLOW UP LONG TERM', color: 'bg-rose-50 text-rose-700',       borderColor: 'border-l-rose-400' },
+  { key: 'DEPOSIT',             label: 'DEPOSIT',             color: 'bg-violet-50 text-violet-700',   borderColor: 'border-l-violet-400' },
+  { key: 'CLOSED',              label: 'CLOSED',              color: 'bg-emerald-50 text-emerald-700', borderColor: 'border-l-emerald-500' },
+  { key: 'LOST - BROKE',        label: 'LOST - BROKE',        color: 'bg-gray-50 text-gray-500',       borderColor: 'border-l-gray-300' },
+  { key: 'LOST - NO INTEREST',  label: 'LOST - NO INTEREST',  color: 'bg-gray-50 text-gray-500',       borderColor: 'border-l-gray-300' },
+  { key: 'LOST - BAD FIT',      label: 'LOST - BAD FIT',      color: 'bg-gray-50 text-gray-500',       borderColor: 'border-l-gray-300' },
+  { key: 'NO SHOW',             label: 'NO SHOW',             color: 'bg-red-50 text-red-700',         borderColor: 'border-l-red-400' },
+  { key: 'CANCELLED BY LEAD',   label: 'CANCELLED BY LEAD',   color: 'bg-gray-50 text-gray-600',       borderColor: 'border-l-gray-300' },
+  { key: 'CANCELLED BY CLOSER', label: 'CANCELLED BY CLOSER', color: 'bg-gray-50 text-gray-600',       borderColor: 'border-l-gray-300' },
 ]
 
 export default function PipelinePage() {
@@ -48,11 +48,11 @@ export default function PipelinePage() {
       map[stage.key] = []
     }
     for (const call of calls) {
-      const result = call.result || 'NEW'
+      const result = call.result || 'CALL BOOKED'
       if (map[result]) {
         map[result].push(call)
       } else {
-        map['NEW'].push(call)
+        map['CALL BOOKED'].push(call)
       }
     }
     return map

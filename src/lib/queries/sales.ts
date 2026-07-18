@@ -3,9 +3,9 @@ import { supabase } from '@/lib/supabase'
 // ── TYPES ──
 
 export type CallResult =
-  | 'NEW' | 'RESCHEDULE' | 'CONTACTED' | 'PRE CALL'
-  | 'OFFER ACCEPTED' | 'FOLLOW UP' | 'LTFU' | 'DEAL'
-  | 'NO SHOW' | 'NO DEAL' | 'BROKE' | 'CANCEL'
+  | 'CALL BOOKED' | 'RESCHEDULE' | 'FOLLOW UP' | 'FOLLOW UP LONG TERM'
+  | 'DEPOSIT' | 'CLOSED' | 'LOST - BROKE' | 'LOST - NO INTEREST'
+  | 'LOST - BAD FIT' | 'NO SHOW' | 'CANCELLED BY LEAD' | 'CANCELLED BY CLOSER'
 
 export interface Call {
   id: string
@@ -72,11 +72,11 @@ export interface SalesMetrics {
   cashPerCallBooked: number
   noShows: number
   followUps: number
-  offerAccepted: number
-  noDeals: number
+  deposits: number
+  lostBroke: number
+  lostNoInterest: number
+  lostBadFit: number
   cancelled: number
-  broke: number
-  ltfu: number
 }
 
 export interface Installment {
@@ -202,9 +202,9 @@ export async function getCallsByResult(): Promise<Record<CallResult, Call[]>> {
   const calls = await getAllCalls()
 
   const stages: CallResult[] = [
-    'NEW', 'RESCHEDULE', 'CONTACTED', 'PRE CALL',
-    'OFFER ACCEPTED', 'FOLLOW UP', 'LTFU', 'DEAL',
-    'NO SHOW', 'NO DEAL', 'BROKE', 'CANCEL',
+    'CALL BOOKED', 'RESCHEDULE', 'FOLLOW UP', 'FOLLOW UP LONG TERM',
+    'DEPOSIT', 'CLOSED', 'LOST - BROKE', 'LOST - NO INTEREST',
+    'LOST - BAD FIT', 'NO SHOW', 'CANCELLED BY LEAD', 'CANCELLED BY CLOSER',
   ]
 
   const grouped: Record<string, Call[]> = {}
@@ -213,11 +213,11 @@ export async function getCallsByResult(): Promise<Record<CallResult, Call[]>> {
   }
 
   for (const call of calls) {
-    const result = call.result || 'NEW'
+    const result = call.result || 'CALL BOOKED'
     if (grouped[result]) {
       grouped[result].push(call)
     } else {
-      grouped['NEW'].push(call)
+      grouped['CALL BOOKED'].push(call)
     }
   }
 
@@ -228,19 +228,19 @@ export async function getCallsByResult(): Promise<Record<CallResult, Call[]>> {
 
 export function calculateMetrics(calls: Call[]): SalesMetrics {
   const totalCalls = calls.length
-  const closedDeals = calls.filter(c => c.result === 'DEAL').length
+  const closedDeals = calls.filter(c => c.result === 'CLOSED').length
   const totalDealValue = calls
-    .filter(c => c.result === 'DEAL')
+    .filter(c => c.result === 'CLOSED')
     .reduce((sum, c) => sum + (c.deal_value || 0), 0)
   const totalCashCollected = calls.reduce((sum, c) => sum + (c.cash_collected || 0), 0)
 
   const noShows = calls.filter(c => c.result === 'NO SHOW').length
-  const cancelled = calls.filter(c => c.result === 'CANCEL').length
-  const followUps = calls.filter(c => c.result === 'FOLLOW UP').length
-  const offerAccepted = calls.filter(c => c.result === 'OFFER ACCEPTED').length
-  const noDeals = calls.filter(c => c.result === 'NO DEAL').length
-  const broke = calls.filter(c => c.result === 'BROKE').length
-  const ltfu = calls.filter(c => c.result === 'LTFU').length
+  const cancelled = calls.filter(c => c.result === 'CANCELLED BY LEAD' || c.result === 'CANCELLED BY CLOSER').length
+  const followUps = calls.filter(c => c.result === 'FOLLOW UP' || c.result === 'FOLLOW UP LONG TERM').length
+  const deposits = calls.filter(c => c.result === 'DEPOSIT').length
+  const lostBroke = calls.filter(c => c.result === 'LOST - BROKE').length
+  const lostNoInterest = calls.filter(c => c.result === 'LOST - NO INTEREST').length
+  const lostBadFit = calls.filter(c => c.result === 'LOST - BAD FIT').length
 
   // Calls that actually happened (not no-show, not cancelled)
   const takenCalls = totalCalls - noShows - cancelled
@@ -266,11 +266,11 @@ export function calculateMetrics(calls: Call[]): SalesMetrics {
     cashPerCallBooked,
     noShows,
     followUps,
-    offerAccepted,
-    noDeals,
+    deposits,
+    lostBroke,
+    lostNoInterest,
+    lostBadFit,
     cancelled,
-    broke,
-    ltfu,
   }
 }
 
@@ -305,7 +305,7 @@ export async function getDealsWithContracts(): Promise<DealWithContract[]> {
       contracts(id, call_id),
       first_deposits(id, call_id, whop_link, stripe_link)
     `)
-    .eq('result', 'DEAL')
+    .eq('result', 'CLOSED')
     .order('date_start_time', { ascending: false })
 
   return (deals || []) as unknown as DealWithContract[]

@@ -349,13 +349,13 @@ export default function SalesOverview() {
 
       {/* Secondary stats row */}
       <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4">
-        <MiniStat label="No shows" value={metrics.noShows} invert />
-        <MiniStat label="Cancelled" value={metrics.cancelled} invert />
-        <MiniStat label="No deal" value={metrics.noDeals} invert />
-        <MiniStat label="Broke" value={metrics.broke} invert />
-        <MiniStat label="LTFU" value={metrics.ltfu} invert />
-        <MiniStat label="Follow ups" value={metrics.followUps} />
-        <MiniStat label="Offer accepted" value={metrics.offerAccepted} />
+        <MiniStat label="NO SHOW" value={metrics.noShows} invert />
+        <MiniStat label="CANCELLED" value={metrics.cancelled} invert />
+        <MiniStat label="LOST - BROKE" value={metrics.lostBroke} invert />
+        <MiniStat label="LOST - NO INTEREST" value={metrics.lostNoInterest} invert />
+        <MiniStat label="LOST - BAD FIT" value={metrics.lostBadFit} invert />
+        <MiniStat label="FOLLOW UPS" value={metrics.followUps} />
+        <MiniStat label="DEPOSITS" value={metrics.deposits} />
       </div>
     </div>
   )

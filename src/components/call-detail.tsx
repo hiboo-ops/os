@@ -16,9 +16,9 @@ import {
 const iconProps = { strokeWidth: 1.75 } as const
 
 const RESULT_OPTIONS: CallResult[] = [
-  'NEW', 'RESCHEDULE', 'CONTACTED', 'PRE CALL',
-  'OFFER ACCEPTED', 'FOLLOW UP', 'LTFU', 'DEAL',
-  'NO SHOW', 'NO DEAL', 'BROKE', 'CANCEL',
+  'CALL BOOKED', 'RESCHEDULE', 'FOLLOW UP', 'FOLLOW UP LONG TERM',
+  'DEPOSIT', 'CLOSED', 'LOST - BROKE', 'LOST - NO INTEREST',
+  'LOST - BAD FIT', 'NO SHOW', 'CANCELLED BY LEAD', 'CANCELLED BY CLOSER',
 ]
 
 interface CallDetailProps {
@@ -262,7 +262,7 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
             />
 
             {/* No Deal Reason (conditional) */}
-            {result === 'NO DEAL' && (
+            {result?.startsWith('LOST') && (
               <div>
                 <label className="text-[11px] font-semibold text-gray-400 uppercase">No Deal Reason</label>
                 <input
@@ -276,7 +276,7 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
             )}
 
             {/* Deal Value (conditional) */}
-            {result === 'DEAL' && (
+            {result === 'CLOSED' && (
               <div>
                 <label className="text-[11px] font-semibold text-gray-400 uppercase">Deal Value</label>
                 <div className="mt-1 relative">

@@ -65,17 +65,15 @@ const styles: Record<string, string> = {
   ATHENA: 'bg-indigo-50 text-indigo-600 border-indigo-200',
 
   // Sales pipeline / Call results
-  NEW: 'bg-gray-50 text-gray-700 border-gray-200',
+  'CALL BOOKED': 'bg-blue-50 text-blue-700 border-blue-200',
   RESCHEDULE: 'bg-amber-50 text-amber-700 border-amber-200',
-  CONTACTED: 'bg-sky-50 text-sky-700 border-sky-200',
-  'PRE CALL': 'bg-blue-50 text-blue-700 border-blue-200',
-  'OFFER ACCEPTED': 'bg-violet-50 text-violet-700 border-violet-200',
-  LTFU: 'bg-rose-50 text-rose-700 border-rose-200',
-  DEAL: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  'FOLLOW UP LONG TERM': 'bg-rose-50 text-rose-700 border-rose-200',
+  DEPOSIT: 'bg-violet-50 text-violet-700 border-violet-200',
+  CLOSED: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  'LOST - BAD FIT': 'bg-gray-50 text-gray-500 border-gray-200',
   'NO SHOW': 'bg-red-50 text-red-700 border-red-200',
-  'NO DEAL': 'bg-red-50 text-red-600 border-red-200',
-  BROKE: 'bg-gray-50 text-gray-600 border-gray-200',
-  CANCEL: 'bg-gray-50 text-gray-500 border-gray-200',
+  'CANCELLED BY LEAD': 'bg-gray-50 text-gray-500 border-gray-200',
+  'CANCELLED BY CLOSER': 'bg-gray-50 text-gray-500 border-gray-200',
 
   // Verdienmodel
   'HIGH TICKET CLOSING': 'bg-violet-50 text-violet-700 border-violet-200',
