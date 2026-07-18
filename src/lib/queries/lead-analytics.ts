@@ -265,12 +265,14 @@ export async function getSLAStatus(): Promise<SLAStatus> {
   const outsideSLA = leads.filter(l => l.sla_met === false).length
   const slaPercent = total > 0 ? Math.round((withinSLA / total) * 100) : 100
 
-  // Uncalled leads (any stage LEAD with no first_called_at)
+  // Uncalled leads — only recent (< 7 days), not old imported ones
+  const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const { data: uncalledData } = await supabase
     .from('leads')
     .select('id')
     .eq('stage', 'LEAD')
     .is('first_called_at', null)
+    .gte('date_received', oneWeekAgo)
 
   return {
     today: { total, withinSLA, outsideSLA, slaPercent },

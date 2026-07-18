@@ -42,10 +42,17 @@ function timeAgo(dateStr: string | null): string {
   return `${weeks}w`
 }
 
+const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000
+
 function getSLAMinutes(dateReceived: string | null): number | null {
   if (!dateReceived) return null
   const diff = Date.now() - new Date(dateReceived).getTime()
   return Math.floor(diff / 60000)
+}
+
+function isRecentLead(dateReceived: string | null): boolean {
+  if (!dateReceived) return false
+  return (Date.now() - new Date(dateReceived).getTime()) < ONE_WEEK_MS
 }
 
 export default function LeadsPage() {
@@ -105,6 +112,17 @@ export default function LeadsPage() {
     [allLeads]
   )
 
+  // KPIs only count recent leads (< 7 days old)
+  const recentStats = useMemo(() => {
+    const recent = leads.filter(l => isRecentLead(l.date_received))
+    return {
+      lead: recent.filter(l => l.stage === 'LEAD').length,
+      attempts: recent.filter(l => l.stage.startsWith('ATTEMPT')).length,
+      toSetter: recent.filter(l => l.stage === 'TO SETTER').length,
+      total: recent.length,
+    }
+  }, [leads])
+
   if (loading) return <SkeletonPage />
 
   return (
@@ -135,14 +153,14 @@ export default function LeadsPage() {
         </div>
       </div>
 
-      {/* KPIs + SLA */}
+      {/* KPIs + SLA (only recent leads < 7 days) */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
-        <KpiCard label="Ongebeld" value={stats?.lead || 0} captionColor={stats?.lead && stats.lead > 0 ? 'danger' : undefined} caption={stats?.lead && stats.lead > 0 ? 'wacht op bel-actie' : undefined} />
-        <KpiCard label="In pogingen" value={(stats?.attempt1 || 0) + (stats?.attempt2 || 0) + (stats?.attempt3 || 0) + (stats?.attempt4 || 0)} />
-        <KpiCard label="To Setter" value={stats?.toSetter || 0} captionColor="success" />
+        <KpiCard label="Ongebeld (7d)" value={recentStats.lead} captionColor={recentStats.lead > 0 ? 'danger' : undefined} caption={recentStats.lead > 0 ? 'wacht op bel-actie' : undefined} />
+        <KpiCard label="In pogingen (7d)" value={recentStats.attempts} />
+        <KpiCard label="To Setter (7d)" value={recentStats.toSetter} captionColor="success" />
         <KpiCard label="SLA vandaag" value={slaStatus ? `${slaStatus.today.slaPercent}%` : '—'} captionColor={slaStatus && slaStatus.today.slaPercent < 80 ? 'danger' : 'success'} caption={`< ${SLA_MINUTES} min target`} />
         <KpiCard label="Gem. TTC" value={stats?.avgTimeToCall != null ? `${stats.avgTimeToCall}m` : '—'} />
-        <KpiCard label="Actief totaal" value={stats?.active || 0} />
+        <KpiCard label="Totaal in board" value={leads.length} />
       </div>
 
       {/* Search + archive */}
@@ -290,7 +308,8 @@ function LeadCard({ lead, stage, onClick, onCallAction }: {
   onCallAction: (type: 'answered' | 'not_answered') => void
 }) {
   const slaMins = getSLAMinutes(lead.date_received)
-  const slaExpired = lead.stage === 'LEAD' && !lead.first_called_at && slaMins != null && slaMins > SLA_MINUTES
+  const recent = isRecentLead(lead.date_received)
+  const slaExpired = recent && lead.stage === 'LEAD' && !lead.first_called_at && slaMins != null && slaMins > SLA_MINUTES
 
   const handleCall = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -303,8 +322,8 @@ function LeadCard({ lead, stage, onClick, onCallAction }: {
   return (
     <div onClick={onClick}
       className={`bg-white rounded-lg border ${slaExpired ? 'border-red-200 bg-red-50/30' : 'border-gray-200'} ${stage.borderColor} border-l-[3px] p-3.5 cursor-pointer hover:border-gray-300 transition-colors duration-[120ms]`}>
-      {/* SLA indicator for uncalled leads */}
-      {lead.stage === 'LEAD' && !lead.first_called_at && slaMins != null && (
+      {/* SLA indicator for uncalled leads (only show for recent leads < 7 days) */}
+      {recent && lead.stage === 'LEAD' && !lead.first_called_at && slaMins != null && (
         <div className={`flex items-center gap-1 text-[10px] font-medium mb-1.5 ${slaExpired ? 'text-red-600' : 'text-emerald-600'}`}>
           {slaExpired ? <AlertTriangle className="w-3 h-3" {...iconProps} /> : <Clock className="w-3 h-3" {...iconProps} />}
           <span className="tabular-nums">{slaMins}m</span>
