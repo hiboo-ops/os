@@ -20,15 +20,15 @@ const iconProps = { strokeWidth: 1.75 } as const
 const SLA_MINUTES = 5
 
 const STAGE_CONFIG: { key: string; label: string; color: string; borderColor: string }[] = [
-  { key: 'LEAD',                label: 'Lead',                color: 'bg-blue-50 text-blue-700',       borderColor: 'border-l-blue-400' },
-  { key: 'FOLLOW UP',           label: 'Follow Up',           color: 'bg-sky-50 text-sky-700',         borderColor: 'border-l-sky-400' },
-  { key: 'ATTEMPT 1',           label: 'Attempt 1',           color: 'bg-amber-50 text-amber-700',     borderColor: 'border-l-amber-400' },
-  { key: 'ATTEMPT 2',           label: 'Attempt 2',           color: 'bg-orange-50 text-orange-700',   borderColor: 'border-l-orange-400' },
-  { key: 'ATTEMPT 3',           label: 'Attempt 3',           color: 'bg-rose-50 text-rose-700',       borderColor: 'border-l-rose-400' },
-  { key: 'ATTEMPT 4',           label: 'Attempt 4',           color: 'bg-red-50 text-red-700',         borderColor: 'border-l-red-400' },
-  { key: 'CLOSING CALL BOOKED', label: 'Call Booked',         color: 'bg-emerald-50 text-emerald-700', borderColor: 'border-l-emerald-500' },
-  { key: 'LOST - NO INTEREST',  label: 'Lost - No Interest',  color: 'bg-gray-50 text-gray-500',       borderColor: 'border-l-gray-300' },
-  { key: 'LOST - BROKE',        label: 'Lost - Broke',        color: 'bg-gray-50 text-gray-500',       borderColor: 'border-l-gray-300' },
+  { key: 'LEAD',                label: 'LEAD',                color: 'bg-blue-50 text-blue-700',       borderColor: 'border-l-blue-400' },
+  { key: 'FOLLOW UP',           label: 'FOLLOW UP',           color: 'bg-sky-50 text-sky-700',         borderColor: 'border-l-sky-400' },
+  { key: 'ATTEMPT 1',           label: 'ATTEMPT 1',           color: 'bg-amber-50 text-amber-700',     borderColor: 'border-l-amber-400' },
+  { key: 'ATTEMPT 2',           label: 'ATTEMPT 2',           color: 'bg-orange-50 text-orange-700',   borderColor: 'border-l-orange-400' },
+  { key: 'ATTEMPT 3',           label: 'ATTEMPT 3',           color: 'bg-rose-50 text-rose-700',       borderColor: 'border-l-rose-400' },
+  { key: 'ATTEMPT 4',           label: 'ATTEMPT 4',           color: 'bg-red-50 text-red-700',         borderColor: 'border-l-red-400' },
+  { key: 'CLOSING CALL BOOKED', label: 'CLOSING CALL BOOKED', color: 'bg-emerald-50 text-emerald-700', borderColor: 'border-l-emerald-500' },
+  { key: 'LOST - NO INTEREST',  label: 'LOST - NO INTEREST',  color: 'bg-gray-50 text-gray-500',       borderColor: 'border-l-gray-300' },
+  { key: 'LOST - BROKE',        label: 'LOST - BROKE',        color: 'bg-gray-50 text-gray-500',       borderColor: 'border-l-gray-300' },
 ]
 
 function timeAgo(dateStr: string | null): string {
@@ -135,8 +135,8 @@ export default function LeadsPage() {
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Leads</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            <span className="tabular-nums">{stats?.active || 0}</span> actieve leads &middot;{' '}
-            <span className="tabular-nums">{stats?.total || 0}</span> totaal
+            <span className="tabular-nums">{stats?.active || 0}</span> active leads &middot;{' '}
+            <span className="tabular-nums">{stats?.total || 0}</span> total
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -151,32 +151,32 @@ export default function LeadsPage() {
             </button>
           </div>
           <Button variant="primary" size="md" onClick={() => setShowAddModal(true)}>
-            <Plus className="w-4 h-4" {...iconProps} /> Lead toevoegen
+            <Plus className="w-4 h-4" {...iconProps} /> Add lead
           </Button>
         </div>
       </div>
 
       {/* KPIs + SLA (only recent leads < 7 days) */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
-        <KpiCard label="Ongebeld (7d)" value={recentStats.lead} captionColor={recentStats.lead > 0 ? 'danger' : undefined} caption={recentStats.lead > 0 ? 'wacht op bel-actie' : undefined} />
-        <KpiCard label="In pogingen (7d)" value={recentStats.attempts} />
-        <KpiCard label="To Setter (7d)" value={recentStats.toSetter} captionColor="success" />
-        <KpiCard label="SLA vandaag" value={slaStatus ? `${slaStatus.today.slaPercent}%` : '—'} captionColor={slaStatus && slaStatus.today.slaPercent < 80 ? 'danger' : 'success'} caption={`< ${SLA_MINUTES} min target`} />
-        <KpiCard label="Gem. TTC" value={stats?.avgTimeToCall != null ? `${stats.avgTimeToCall}m` : '—'} />
-        <KpiCard label="Totaal in board" value={leads.length} />
+        <KpiCard label="Uncalled (7d)" value={recentStats.lead} captionColor={recentStats.lead > 0 ? 'danger' : undefined} caption={recentStats.lead > 0 ? 'waiting to be called' : undefined} />
+        <KpiCard label="In attempts (7d)" value={recentStats.attempts} />
+        <KpiCard label="Call Booked (7d)" value={recentStats.toSetter} captionColor="success" />
+        <KpiCard label="SLA today" value={slaStatus ? `${slaStatus.today.slaPercent}%` : '—'} captionColor={slaStatus && slaStatus.today.slaPercent < 80 ? 'danger' : 'success'} caption={`< ${SLA_MINUTES} min target`} />
+        <KpiCard label="Avg. TTC" value={stats?.avgTimeToCall != null ? `${stats.avgTimeToCall}m` : '—'} />
+        <KpiCard label="Total in board" value={leads.length} />
       </div>
 
       {/* Search + archive */}
       <div className="flex items-center gap-3 mb-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" {...iconProps} />
-          <input type="text" placeholder="Zoek op naam, email of telefoon..." value={search}
+          <input type="text" placeholder="Search by name, email or phone..." value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full pl-9 pr-3 h-9 text-sm border border-gray-200 rounded-lg bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-accent-500 transition-shadow duration-[120ms]" />
         </div>
         <button onClick={() => setShowArchive(!showArchive)}
           className={`h-9 px-3 text-sm rounded-lg border transition-colors duration-[120ms] ${showArchive ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
-          Archief ({archivedLeads.length})
+          Archive ({archivedLeads.length})
         </button>
       </div>
 
@@ -202,7 +202,7 @@ export default function LeadsPage() {
                     ))}
                     {stageLeads.length === 0 && (
                       <div className="rounded-lg border border-dashed border-gray-200 p-4 text-center">
-                        <span className="text-xs text-gray-400">Geen leads</span>
+                        <span className="text-xs text-gray-400">No leads</span>
                       </div>
                     )}
                   </div>
@@ -220,13 +220,13 @@ export default function LeadsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100">
-                  <th className="px-5 py-3">Naam</th>
-                  <th className="px-4 py-3">Telefoon</th>
-                  <th className="px-4 py-3">Bron</th>
+                  <th className="px-5 py-3">Name</th>
+                  <th className="px-4 py-3">Phone</th>
+                  <th className="px-4 py-3">Source</th>
                   <th className="px-4 py-3">Stage</th>
-                  <th className="px-4 py-3">Pogingen</th>
+                  <th className="px-4 py-3">Attempts</th>
                   <th className="px-4 py-3">SLA</th>
-                  <th className="px-4 py-3">Ontvangen</th>
+                  <th className="px-4 py-3">Received</th>
                   <th className="px-4 py-3 w-10"></th>
                 </tr>
               </thead>
@@ -277,7 +277,7 @@ export default function LeadsPage() {
             </table>
           </div>
           {(showArchive ? archivedLeads : leads).length === 0 && (
-            <div className="py-16 text-center text-sm text-gray-400">Geen leads gevonden</div>
+            <div className="py-16 text-center text-sm text-gray-400">No leads gevonden</div>
           )}
         </div>
       )}
@@ -330,7 +330,7 @@ function LeadCard({ lead, stage, onClick, onCallAction }: {
         <div className={`flex items-center gap-1 text-[10px] font-medium mb-1.5 ${slaExpired ? 'text-red-600' : 'text-emerald-600'}`}>
           {slaExpired ? <AlertTriangle className="w-3 h-3" {...iconProps} /> : <Clock className="w-3 h-3" {...iconProps} />}
           <span className="tabular-nums">{slaMins}m</span>
-          {slaExpired && <span>— SLA overschreden</span>}
+          {slaExpired && <span>— SLA exceeded</span>}
         </div>
       )}
 
@@ -342,7 +342,7 @@ function LeadCard({ lead, stage, onClick, onCallAction }: {
         <Clock className="w-3 h-3" {...iconProps} />
         <span>{timeAgo(lead.date_received)}</span>
         {lead.attempt_count > 0 && (
-          <span className="ml-auto tabular-nums">{lead.attempt_count}x gebeld</span>
+          <span className="ml-auto tabular-nums">{lead.attempt_count}x called</span>
         )}
       </div>
 
@@ -358,7 +358,7 @@ function LeadCard({ lead, stage, onClick, onCallAction }: {
             </button>
           </>
         ) : (
-          <span className="text-xs text-gray-400">Geen telefoon</span>
+          <span className="text-xs text-gray-400">No phone</span>
         )}
       </div>
 
@@ -411,7 +411,7 @@ function CallActionModal({ lead, type: initialType, onClose, onDone }: {
   }
 
   const handleAnswered = async () => {
-    if (!nextStage) { alert('Kies een resultaat'); return }
+    if (!nextStage) { alert('Choose a result'); return }
     setSaving(true)
     const now = new Date().toISOString()
     const updates: Record<string, unknown> = {
@@ -448,14 +448,14 @@ function CallActionModal({ lead, type: initialType, onClose, onDone }: {
         {/* Step 1: Choose result */}
         {view === 'choose' && (
           <div className="space-y-3">
-            <p className="text-sm text-gray-600">Wat was het resultaat?</p>
+            <p className="text-sm text-gray-600">What was the result?</p>
             <Button variant="secondary" size="md" onClick={handleNotAnswered} disabled={saving} className="w-full justify-center">
               <PhoneMissed className="w-4 h-4 text-amber-600" {...iconProps} />
-              Niet opgenomen
+              Not answered
             </Button>
             <Button variant="primary" size="md" onClick={() => setView('answered')} className="w-full justify-center">
               <CheckCircle2 className="w-4 h-4" {...iconProps} />
-              Opgenomen
+              Answered
             </Button>
           </div>
         )}
@@ -476,11 +476,11 @@ function CallActionModal({ lead, type: initialType, onClose, onDone }: {
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Notities</label>
               <textarea value={notes} onChange={e => setNotes(e.target.value)}
-                rows={3} placeholder="Korte samenvatting van het gesprek..."
+                rows={3} placeholder="Brief summary of the conversation..."
                 className="mt-1.5 w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-accent-700" />
             </div>
             <Button variant="primary" size="md" onClick={handleAnswered} disabled={saving} className="w-full justify-center">
-              {saving ? 'Opslaan...' : 'Opslaan'}
+              {saving ? 'Saving...' : 'Save'}
             </Button>
           </div>
         )}
@@ -527,16 +527,16 @@ function LeadDetail({ lead, onClose, onUpdate }: { lead: Lead; onClose: () => vo
           <Badge status={lead.stage} />
           <Badge status={lead.source || 'OTHER'} />
           {lead.attempt_count > 0 && (
-            <span className="text-[11px] text-gray-400 tabular-nums">{lead.attempt_count}x gebeld</span>
+            <span className="text-[11px] text-gray-400 tabular-nums">{lead.attempt_count}x called</span>
           )}
           {lead.sla_met === true && (
             <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
-              <CheckCircle2 className="w-3 h-3" /> SLA gehaald
+              <CheckCircle2 className="w-3 h-3" /> SLA met
             </span>
           )}
           {lead.sla_met === false && (
             <span className="inline-flex items-center gap-1 text-[11px] text-red-600 font-medium">
-              <AlertTriangle className="w-3 h-3" /> SLA gemist
+              <AlertTriangle className="w-3 h-3" /> SLA missed
             </span>
           )}
         </div>
@@ -553,7 +553,7 @@ function LeadDetail({ lead, onClose, onUpdate }: { lead: Lead; onClose: () => vo
               </>
             ) : (
               <div className="flex items-center gap-2 text-gray-500 text-sm">
-                <PhoneOff className="w-4 h-4" {...iconProps} /> Geen telefoonnummer
+                <PhoneOff className="w-4 h-4" {...iconProps} /> No phonenummer
               </div>
             )}
           </div>
@@ -564,7 +564,7 @@ function LeadDetail({ lead, onClose, onUpdate }: { lead: Lead; onClose: () => vo
           )}
           {lead.stage === 'LEAD' && !lead.first_called_at && slaMins != null && (
             <div className={`mt-2 text-[11px] font-medium ${slaMins > SLA_MINUTES ? 'text-red-600' : 'text-emerald-600'}`}>
-              Wacht al <span className="tabular-nums">{slaMins}m</span> — SLA target: {SLA_MINUTES}m
+              Waiting for <span className="tabular-nums">{slaMins}m</span> — SLA target: {SLA_MINUTES}m
             </div>
           )}
         </div>
@@ -578,18 +578,18 @@ function LeadDetail({ lead, onClose, onUpdate }: { lead: Lead; onClose: () => vo
                 <Mail className="w-3.5 h-3.5 text-gray-400" {...iconProps} /> {lead.email}
               </div>
             )}
-            {lead.ad_campaign && <div className="text-gray-500">Campagne: {lead.ad_campaign}</div>}
+            {lead.ad_campaign && <div className="text-gray-500">Campaign: {lead.ad_campaign}</div>}
             {lead.creator_name && <div className="text-gray-500">Creator: {lead.creator_name}</div>}
-            <div className="text-gray-500">Ontvangen: {formatDate(lead.date_received)}</div>
-            {lead.first_called_at && <div className="text-gray-500">Eerste bel: {formatDate(lead.first_called_at)}</div>}
-            {lead.last_attempt_at && <div className="text-gray-500">Laatste poging: {formatDate(lead.last_attempt_at)}</div>}
+            <div className="text-gray-500">Received: {formatDate(lead.date_received)}</div>
+            {lead.first_called_at && <div className="text-gray-500">First call: {formatDate(lead.first_called_at)}</div>}
+            {lead.last_attempt_at && <div className="text-gray-500">Last attempt: {formatDate(lead.last_attempt_at)}</div>}
           </div>
         </div>
 
         {/* Quiz answers */}
         {lead.quiz_answers && lead.quiz_answers.length > 0 && (
           <div className="px-6 py-5 border-b border-gray-100">
-            <h3 className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-3">Quiz antwoorden</h3>
+            <h3 className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-3">Quiz answers</h3>
             <div className="space-y-2">
               {lead.quiz_answers.map((qa, i) => (
                 <div key={i} className="bg-gray-50 rounded-md px-3 py-2.5">
@@ -613,15 +613,15 @@ function LeadDetail({ lead, onClose, onUpdate }: { lead: Lead; onClose: () => vo
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Triage notities</label>
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Triage notes</label>
               <textarea value={form.triage_notes} onChange={e => setForm({ ...form, triage_notes: e.target.value })}
-                rows={3} placeholder="Notities van het gesprek..."
+                rows={3} placeholder="Notes from the conversation..."
                 className="mt-1.5 w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-accent-700" />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Notities</label>
               <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
-                rows={2} placeholder="Algemene notities..."
+                rows={2} placeholder="General notes..."
                 className="mt-1.5 w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-accent-700" />
             </div>
           </div>
@@ -631,7 +631,7 @@ function LeadDetail({ lead, onClose, onUpdate }: { lead: Lead; onClose: () => vo
       {/* Footer */}
       <div className="shrink-0 border-t border-gray-100 px-6 py-4 flex gap-3">
         <Button variant="primary" size="md" onClick={save} disabled={saving} className="flex-1">
-          {saving ? 'Opslaan...' : saved ? <><Check className="w-4 h-4" {...iconProps} /> Opgeslagen</> : 'Opslaan'}
+          {saving ? 'Saving...' : saved ? <><Check className="w-4 h-4" {...iconProps} /> Opgeslagen</> : 'Save'}
         </Button>
       </div>
     </SlideOver>
@@ -644,7 +644,7 @@ function AddLeadModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
   const [creating, setCreating] = useState(false)
 
   const handleCreate = async () => {
-    if (!form.name) { alert('Naam is verplicht'); return }
+    if (!form.name) { alert('Name is verplicht'); return }
     setCreating(true)
     const now = new Date().toISOString()
     const slaDeadline = new Date(Date.now() + SLA_MINUTES * 60000).toISOString()
@@ -671,14 +671,14 @@ function AddLeadModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
       <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
       <div className="relative bg-white rounded-lg border border-gray-200 w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-base font-semibold text-gray-900">Lead toevoegen</h2>
+          <h2 className="text-base font-semibold text-gray-900">Add lead</h2>
           <button onClick={onClose} className="p-1 rounded-md text-gray-400 hover:bg-gray-100"><X className="w-5 h-5" /></button>
         </div>
         <div className="space-y-4">
           <div>
-            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Naam *</label>
+            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Name *</label>
             <input type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-              placeholder="Naam" className="mt-1.5 w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700" />
+              placeholder="Name" className="mt-1.5 w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -687,13 +687,13 @@ function AddLeadModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
                 placeholder="email@..." className="mt-1.5 w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700" />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Telefoon</label>
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Phone</label>
               <input type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
                 placeholder="+31 6..." className="mt-1.5 w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700" />
             </div>
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Bron</label>
+            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Source</label>
             <select value={form.source} onChange={e => setForm({ ...form, source: e.target.value })}
               className="mt-1.5 w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700">
               <option value="ATHENA">Athena</option>
@@ -706,9 +706,9 @@ function AddLeadModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
           </div>
         </div>
         <div className="flex gap-3 mt-6 pt-4 border-t border-gray-100">
-          <Button variant="secondary" size="md" onClick={onClose} className="flex-1">Annuleren</Button>
+          <Button variant="secondary" size="md" onClick={onClose} className="flex-1">Cancel</Button>
           <Button variant="primary" size="md" onClick={handleCreate} disabled={creating} className="flex-1">
-            {creating ? 'Toevoegen...' : 'Lead toevoegen'}
+            {creating ? 'Adding...' : 'Add lead'}
           </Button>
         </div>
       </div>

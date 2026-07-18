@@ -101,7 +101,7 @@ export async function getSourcePerformance(dateFrom?: string, dateTo?: string): 
   // Group by source (use creator_name or ad_campaign for more granularity)
   const sourceMap = new Map<string, typeof leads>()
   for (const lead of leads) {
-    const key = lead.creator_name || lead.source || 'Onbekend'
+    const key = lead.creator_name || lead.source || 'Unknown'
     if (!sourceMap.has(key)) sourceMap.set(key, [])
     sourceMap.get(key)!.push(lead)
   }
@@ -190,7 +190,7 @@ export async function getTriagePerformance(dateFrom?: string, dateTo?: string): 
 
     rows.push({
       callerId: callerId === 'unassigned' ? null : callerId,
-      name: callerId === 'unassigned' ? 'Niet toegewezen' : (setterMap.get(callerId) || 'Onbekend'),
+      name: callerId === 'unassigned' ? 'Unassigned' : (setterMap.get(callerId) || 'Unknown'),
       called,
       connected,
       toSetter,

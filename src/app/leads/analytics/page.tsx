@@ -96,26 +96,26 @@ export default function LeadAnalyticsPage() {
       {sla && (
         <div className="grid grid-cols-4 gap-4 mb-8">
           <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="text-[11px] text-gray-500 uppercase tracking-wide">SLA vandaag</div>
+            <div className="text-[11px] text-gray-500 uppercase tracking-wide">SLA today</div>
             <div className={`text-2xl font-semibold tabular-nums mt-1 ${sla.today.slaPercent >= 80 ? 'text-emerald-700' : 'text-red-700'}`}>
               {sla.today.slaPercent}%
             </div>
-            <div className="text-[11px] text-gray-400">{sla.today.withinSLA}/{sla.today.total} binnen 5 min</div>
+            <div className="text-[11px] text-gray-400">{sla.today.withinSLA}/{sla.today.total} within 5 min</div>
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="text-[11px] text-gray-500 uppercase tracking-wide">Wachtend (ongebeld)</div>
+            <div className="text-[11px] text-gray-500 uppercase tracking-wide">Waiting (uncalled)</div>
             <div className={`text-2xl font-semibold tabular-nums mt-1 ${sla.uncalled > 0 ? 'text-red-700' : 'text-gray-900'}`}>
               {sla.uncalled}
             </div>
             <div className="text-[11px] text-gray-400">leads in queue</div>
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="text-[11px] text-gray-500 uppercase tracking-wide">Binnen SLA vandaag</div>
+            <div className="text-[11px] text-gray-500 uppercase tracking-wide">Binnen SLA today</div>
             <div className="text-2xl font-semibold tabular-nums mt-1 text-emerald-700">{sla.today.withinSLA}</div>
             <div className="text-[11px] text-gray-400">&lt; 5 min gebeld</div>
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="text-[11px] text-gray-500 uppercase tracking-wide">Buiten SLA vandaag</div>
+            <div className="text-[11px] text-gray-500 uppercase tracking-wide">Buiten SLA today</div>
             <div className={`text-2xl font-semibold tabular-nums mt-1 ${sla.today.outsideSLA > 0 ? 'text-amber-600' : 'text-gray-900'}`}>
               {sla.today.outsideSLA}
             </div>
@@ -179,9 +179,9 @@ export default function LeadAnalyticsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100">
-                    <th className="px-5 py-3">Beller</th>
-                    <th className="px-4 py-3 text-right">Gebeld</th>
-                    <th className="px-4 py-3 text-right">Opgenomen</th>
+                    <th className="px-5 py-3">Caller</th>
+                    <th className="px-4 py-3 text-right">Called</th>
+                    <th className="px-4 py-3 text-right">Connected</th>
                     <th className="px-4 py-3 text-right">To Setter</th>
                     <th className="px-4 py-3 text-right">Gem. TTC</th>
                     <th className="px-4 py-3 text-right">SLA %</th>
@@ -214,7 +214,7 @@ export default function LeadAnalyticsPage() {
       {/* ── Weekly Trends ── */}
       {trends && trends.length > 0 && (
         <div className="mb-8">
-          <h2 className="text-sm font-medium text-gray-700 mb-3">Wekelijkse trends</h2>
+          <h2 className="text-sm font-medium text-gray-700 mb-3">Weekly trends</h2>
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
