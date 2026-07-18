@@ -39,6 +39,7 @@ export async function getAllLeads(filters?: { source?: string; stage?: string; s
       closer:closers(id, name)
     `)
     .order('created_at', { ascending: false })
+    .limit(5000)
 
   if (filters?.source) query = query.eq('source', filters.source)
   if (filters?.stage) query = query.eq('stage', filters.stage)
@@ -74,7 +75,7 @@ export async function getLeadById(id: string) {
 }
 
 export async function getLeadStats() {
-  const { data } = await supabase.from('leads').select('id, stage, source')
+  const { data } = await supabase.from('leads').select('id, stage, source').limit(5000)
   const all = data || []
   return {
     total: all.length,
