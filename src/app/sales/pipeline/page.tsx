@@ -5,6 +5,7 @@ import { SkeletonPage } from '@/components/ui/skeleton'
 import { eur, formatDate } from '@/lib/format'
 import { getAllCalls } from '@/lib/queries/sales'
 import type { Call, CallResult } from '@/lib/queries/sales'
+import { CallDetail } from '@/components/call-detail'
 import { User, Calendar, DollarSign } from 'lucide-react'
 
 const iconProps = { strokeWidth: 1.75 } as const
@@ -28,12 +29,17 @@ const STAGES: { key: CallResult; label: string; color: string; borderColor: stri
 export default function PipelinePage() {
   const [calls, setCalls] = useState<Call[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedCall, setSelectedCall] = useState<Call | null>(null)
 
-  useEffect(() => {
+  const loadCalls = () => {
     getAllCalls().then(data => {
       setCalls(data)
       setLoading(false)
     })
+  }
+
+  useEffect(() => {
+    loadCalls()
   }, [])
 
   const grouped = useMemo(() => {
@@ -91,7 +97,7 @@ export default function PipelinePage() {
                   {stageCalls.map(call => (
                     <div
                       key={call.id}
-                      onClick={() => console.log('Open call detail:', call.id, call)}
+                      onClick={() => setSelectedCall(call)}
                       className={`bg-white rounded-lg border border-gray-200 ${stage.borderColor} border-l-[3px] p-3.5 cursor-pointer hover:border-gray-300 transition-colors duration-[120ms]`}
                     >
                       {/* Name */}
@@ -152,6 +158,18 @@ export default function PipelinePage() {
           })}
         </div>
       </div>
+
+      {/* Call Detail slide-out */}
+      {selectedCall && (
+        <CallDetail
+          call={selectedCall}
+          onClose={() => setSelectedCall(null)}
+          onUpdate={() => {
+            setSelectedCall(null)
+            loadCalls()
+          }}
+        />
+      )}
     </div>
   )
 }
