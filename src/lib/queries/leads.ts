@@ -24,12 +24,19 @@ export interface Lead {
   closer_id: string | null
   notes: string | null
   created_at: string
+  first_called_at: string | null
+  attempt_count: number
+  last_attempt_at: string | null
+  time_to_call_minutes: number | null
   creator: { id: string; name: string } | null
   triage_caller: { id: string; name: string } | null
   closer: { id: string; name: string } | null
 }
 
-export async function getAllLeads(filters?: { source?: string; stage?: string; search?: string }) {
+export const LEAD_STAGES = ['LEAD', 'ATTEMPT 1', 'ATTEMPT 2', 'ATTEMPT 3', 'ATTEMPT 4', 'TO SETTER'] as const
+export type LeadStage = typeof LEAD_STAGES[number]
+
+export async function getAllLeads(filters?: { source?: string; stage?: string; search?: string; activeOnly?: boolean }) {
   let query = supabase
     .from('leads')
     .select(`
@@ -38,11 +45,12 @@ export async function getAllLeads(filters?: { source?: string; stage?: string; s
       triage_caller:setters(id, name),
       closer:closers(id, name)
     `)
-    .order('created_at', { ascending: false })
+    .order('date_received', { ascending: true })
     .limit(5000)
 
   if (filters?.source) query = query.eq('source', filters.source)
   if (filters?.stage) query = query.eq('stage', filters.stage)
+  if (filters?.activeOnly) query = query.in('stage', [...LEAD_STAGES])
 
   const { data } = await query
   let results = (data || []) as unknown as Lead[]
@@ -75,18 +83,29 @@ export async function getLeadById(id: string) {
 }
 
 export async function getLeadStats() {
-  const { data } = await supabase.from('leads').select('id, stage, source').limit(5000)
+  const { data } = await supabase.from('leads').select('id, stage, source, first_called_at, date_received, time_to_call_minutes').limit(5000)
   const all = data || []
+  const active = all.filter(l => LEAD_STAGES.includes(l.stage as LeadStage))
+
+  // Avg time to call (only for leads that have been called)
+  const calledLeads = all.filter(l => l.time_to_call_minutes != null)
+  const avgTimeToCall = calledLeads.length > 0
+    ? Math.round(calledLeads.reduce((sum, l) => sum + (l.time_to_call_minutes || 0), 0) / calledLeads.length)
+    : null
+
   return {
     total: all.length,
-    new: all.filter(l => l.stage === 'NEW').length,
-    callBooked: all.filter(l => l.stage === 'CALL BOOKED').length,
-    triage: all.filter(l => l.stage === 'TRIAGE').length,
-    qualified: all.filter(l => l.stage === 'QUALIFIED').length,
+    active: active.length,
+    lead: all.filter(l => l.stage === 'LEAD').length,
+    attempt1: all.filter(l => l.stage === 'ATTEMPT 1').length,
+    attempt2: all.filter(l => l.stage === 'ATTEMPT 2').length,
+    attempt3: all.filter(l => l.stage === 'ATTEMPT 3').length,
+    attempt4: all.filter(l => l.stage === 'ATTEMPT 4').length,
+    toSetter: all.filter(l => l.stage === 'TO SETTER').length,
     notQualified: all.filter(l => l.stage === 'NOT QUALIFIED').length,
-    noAnswer: all.filter(l => l.stage === 'NO ANSWER').length,
+    avgTimeToCall,
+    fromAthena: all.filter(l => l.source === 'ATHENA').length,
     fromQuiz: all.filter(l => l.source === 'QUIZ').length,
     fromAds: all.filter(l => l.source === 'HIBOO ADS').length,
-    fromCreator: all.filter(l => l.source === 'CREATOR').length,
   }
 }
