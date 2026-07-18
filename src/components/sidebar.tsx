@@ -13,6 +13,7 @@ import { useState } from 'react'
 const nav = [
   { href: '/', label: 'Dashboard', icon: BarChart3 },
   { href: '/clients', label: 'Clients', icon: Users },
+  { href: '/leads', label: 'Leads', icon: Target },
   {
     href: '/sales', label: 'Sales', icon: Phone,
     children: [
