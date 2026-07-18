@@ -467,10 +467,10 @@ function CallActionModal({ lead, type: initialType, onClose, onDone }: {
               <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Resultaat</label>
               <select value={nextStage} onChange={e => setNextStage(e.target.value)}
                 className="mt-1.5 w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700">
-                <option value="FOLLOW UP">Follow Up</option>
-                <option value="CLOSING CALL BOOKED">Closing Call Booked</option>
-                <option value="LOST - NO INTEREST">Lost - No Interest</option>
-                <option value="LOST - BROKE">Lost - Broke</option>
+                <option value="FOLLOW UP">FOLLOW UP</option>
+                <option value="CLOSING CALL BOOKED">CLOSING CALL BOOKED</option>
+                <option value="LOST - NO INTEREST">LOST - NO INTEREST</option>
+                <option value="LOST - BROKE">LOST - BROKE</option>
               </select>
             </div>
             <div>
@@ -696,12 +696,12 @@ function AddLeadModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
             <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Source</label>
             <select value={form.source} onChange={e => setForm({ ...form, source: e.target.value })}
               className="mt-1.5 w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700">
-              <option value="ATHENA">Athena</option>
-              <option value="QUIZ">Quiz</option>
-              <option value="HIBOO ADS">Hiboo Ads</option>
-              <option value="CREATOR">Creator</option>
-              <option value="INSTAGRAM DM">Instagram DM</option>
-              <option value="REFERRAL">Referral</option>
+              <option value="ATHENA">ATHENA</option>
+              <option value="QUIZ">QUIZ</option>
+              <option value="HIBOO ADS">HIBOO ADS</option>
+              <option value="CREATOR">CREATOR</option>
+              <option value="INSTAGRAM DM">INSTAGRAM DM</option>
+              <option value="REFERRAL">REFERRAL</option>
             </select>
           </div>
         </div>
