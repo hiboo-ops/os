@@ -5,15 +5,24 @@ import { usePathname } from 'next/navigation'
 import {
   BarChart3, Users, Target, DollarSign, GraduationCap,
   Megaphone, ClipboardCheck, Menu, X, LayoutDashboard,
-  Columns3, ListChecks, FileEdit, ChevronDown, BookOpen
+  Columns3, ListChecks, FileEdit, ChevronDown, BookOpen,
+  Phone, Kanban, CalendarDays, CreditCard, Handshake
 } from 'lucide-react'
 import { useState } from 'react'
 
 const nav = [
   { href: '/', label: 'Dashboard', icon: BarChart3 },
   { href: '/clients', label: 'Clients', icon: Users },
-  { href: '/leads', label: 'Leads', icon: Target },
-  { href: '/deals', label: 'Deals', icon: ClipboardCheck },
+  {
+    href: '/sales', label: 'Sales', icon: Phone,
+    children: [
+      { href: '/sales', label: 'Overview', icon: LayoutDashboard },
+      { href: '/sales/pipeline', label: 'Pipeline', icon: Kanban },
+      { href: '/sales/today', label: 'Today', icon: CalendarDays },
+      { href: '/sales/installments', label: 'Installments', icon: CreditCard },
+      { href: '/sales/deals', label: 'Deals', icon: Handshake },
+    ],
+  },
   { href: '/finance', label: 'Finance', icon: DollarSign },
   {
     href: '/delivery', label: 'Delivery', icon: GraduationCap,
@@ -31,7 +40,11 @@ const nav = [
 export function Sidebar() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
-  const [deliveryOpen, setDeliveryOpen] = useState(pathname.startsWith('/delivery'))
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({
+    '/delivery': pathname.startsWith('/delivery'),
+    '/sales': pathname.startsWith('/sales'),
+  })
+  const toggleExpanded = (href: string) => setExpanded(prev => ({ ...prev, [href]: !prev[href] }))
 
   return (
     <>
@@ -74,16 +87,16 @@ export function Sidebar() {
               return (
                 <div key={item.href}>
                   <button
-                    onClick={() => setDeliveryOpen(!deliveryOpen)}
+                    onClick={() => toggleExpanded(item.href)}
                     className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] transition-colors duration-[120ms] ${
                       active ? 'text-gray-900 font-medium' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                     }`}
                   >
                     <Icon className="w-4 h-4" strokeWidth={1.75} />
                     <span className="flex-1 text-left">{item.label}</span>
-                    <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-[160ms] ${deliveryOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-[160ms] ${expanded[item.href] ? 'rotate-180' : ''}`} />
                   </button>
-                  {deliveryOpen && (
+                  {expanded[item.href] && (
                     <div className="ml-[18px] mt-0.5 space-y-0.5 border-l border-gray-100 pl-2.5">
                       {item.children!.map((child) => {
                         const ChildIcon = child.icon

@@ -1,0 +1,401 @@
+'use client'
+
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { KpiCard } from '@/components/ui/card'
+import { SkeletonPage } from '@/components/ui/skeleton'
+import { eur, formatDate } from '@/lib/format'
+import { getAllCalls, calculateMetrics } from '@/lib/queries/sales'
+import type { Call, CallFilters, SalesMetrics } from '@/lib/queries/sales'
+import {
+  Phone, TrendingUp, TrendingDown, DollarSign, Target,
+  UserX, CalendarX, ArrowUpRight, ArrowDownRight, Minus,
+  Filter, X,
+} from 'lucide-react'
+
+const iconProps = { strokeWidth: 1.75 } as const
+
+type TimePeriod = 'all' | 'week' | 'month' | 'custom'
+
+function getWeekNumber(d: Date): number {
+  const start = new Date(d.getFullYear(), 0, 1)
+  const diff = d.getTime() - start.getTime() + ((start.getTimezoneOffset() - d.getTimezoneOffset()) * 60000)
+  return Math.ceil((diff / 86400000 + start.getDay() + 1) / 7)
+}
+
+function getPreviousPeriodFilters(
+  period: TimePeriod,
+  dateFrom: string,
+  dateTo: string,
+): CallFilters {
+  const now = new Date()
+
+  switch (period) {
+    case 'week': {
+      const weekNum = getWeekNumber(now)
+      return { week: weekNum > 1 ? weekNum - 1 : 52 }
+    }
+    case 'month': {
+      const m = now.getMonth() + 1
+      return { month: m > 1 ? m - 1 : 12 }
+    }
+    case 'custom': {
+      if (!dateFrom || !dateTo) return {}
+      const from = new Date(dateFrom)
+      const to = new Date(dateTo)
+      const rangeMs = to.getTime() - from.getTime()
+      const prevTo = new Date(from.getTime() - 1)
+      const prevFrom = new Date(prevTo.getTime() - rangeMs)
+      return {
+        dateFrom: prevFrom.toISOString().split('T')[0],
+        dateTo: prevTo.toISOString().split('T')[0],
+      }
+    }
+    default:
+      return {}
+  }
+}
+
+function getCurrentPeriodFilters(
+  period: TimePeriod,
+  dateFrom: string,
+  dateTo: string,
+): CallFilters {
+  const now = new Date()
+  switch (period) {
+    case 'week':
+      return { week: getWeekNumber(now) }
+    case 'month':
+      return { month: now.getMonth() + 1 }
+    case 'custom':
+      if (dateFrom && dateTo) return { dateFrom, dateTo }
+      return {}
+    default:
+      return {}
+  }
+}
+
+function ChangeIndicator({ current, previous, isPercentage = false, invert = false }: {
+  current: number
+  previous: number
+  isPercentage?: boolean
+  invert?: boolean
+}) {
+  if (previous === 0 && current === 0) return <span className="text-xs text-gray-400">—</span>
+
+  const diff = previous > 0
+    ? ((current - previous) / previous) * 100
+    : current > 0 ? 100 : 0
+
+  const isPositive = invert ? diff < 0 : diff > 0
+  const isNeutral = Math.abs(diff) < 0.5
+
+  if (isNeutral) {
+    return (
+      <span className="inline-flex items-center gap-0.5 text-xs text-gray-400">
+        <Minus className="w-3 h-3" {...iconProps} />
+        <span className="tabular-nums">0%</span>
+      </span>
+    )
+  }
+
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-xs ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
+      {diff > 0
+        ? <ArrowUpRight className="w-3 h-3" {...iconProps} />
+        : <ArrowDownRight className="w-3 h-3" {...iconProps} />
+      }
+      <span className="tabular-nums">{Math.abs(Math.round(diff))}%</span>
+    </span>
+  )
+}
+
+export default function SalesOverview() {
+  const [allCalls, setAllCalls] = useState<Call[]>([])
+  const [loading, setLoading] = useState(true)
+  const [period, setPeriod] = useState<TimePeriod>('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [sourceFilter, setSourceFilter] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
+
+  useEffect(() => {
+    getAllCalls().then(data => {
+      setAllCalls(data)
+      setLoading(false)
+    })
+  }, [])
+
+  // Filter calls client-side for responsiveness
+  const filteredCalls = useMemo(() => {
+    let calls = allCalls
+
+    if (sourceFilter) {
+      calls = calls.filter(c => c.source === sourceFilter)
+    }
+    if (typeFilter) {
+      calls = calls.filter(c => c.source_type === typeFilter)
+    }
+
+    const now = new Date()
+    const currentFilters = getCurrentPeriodFilters(period, dateFrom, dateTo)
+
+    if (currentFilters.week) {
+      calls = calls.filter(c => c.week === currentFilters.week)
+    }
+    if (currentFilters.month) {
+      calls = calls.filter(c => c.month === currentFilters.month)
+    }
+    if (currentFilters.dateFrom) {
+      calls = calls.filter(c => c.date_start_time && c.date_start_time >= currentFilters.dateFrom!)
+    }
+    if (currentFilters.dateTo) {
+      calls = calls.filter(c => c.date_start_time && c.date_start_time <= currentFilters.dateTo! + 'T23:59:59')
+    }
+
+    return calls
+  }, [allCalls, period, dateFrom, dateTo, sourceFilter, typeFilter])
+
+  // Previous period calls for comparison
+  const previousCalls = useMemo(() => {
+    if (period === 'all') return []
+
+    let calls = allCalls
+    if (sourceFilter) calls = calls.filter(c => c.source === sourceFilter)
+    if (typeFilter) calls = calls.filter(c => c.source_type === typeFilter)
+
+    const prevFilters = getPreviousPeriodFilters(period, dateFrom, dateTo)
+
+    if (prevFilters.week) {
+      calls = calls.filter(c => c.week === prevFilters.week)
+    }
+    if (prevFilters.month) {
+      calls = calls.filter(c => c.month === prevFilters.month)
+    }
+    if (prevFilters.dateFrom) {
+      calls = calls.filter(c => c.date_start_time && c.date_start_time >= prevFilters.dateFrom!)
+    }
+    if (prevFilters.dateTo) {
+      calls = calls.filter(c => c.date_start_time && c.date_start_time <= prevFilters.dateTo! + 'T23:59:59')
+    }
+
+    return calls
+  }, [allCalls, period, dateFrom, dateTo, sourceFilter, typeFilter])
+
+  const metrics = useMemo(() => calculateMetrics(filteredCalls), [filteredCalls])
+  const prevMetrics = useMemo(() => calculateMetrics(previousCalls), [previousCalls])
+
+  const sources = useMemo(() => [...new Set(allCalls.map(c => c.source).filter(Boolean))].sort(), [allCalls])
+  const types = useMemo(() => [...new Set(allCalls.map(c => c.source_type).filter(Boolean))].sort(), [allCalls])
+  const hasPreviousPeriod = period !== 'all'
+
+  if (loading) return <SkeletonPage />
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">Sales Overview</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            <span className="tabular-nums">{filteredCalls.length}</span> calls
+            {period !== 'all' && (
+              <span> · vergelijking met vorige periode</span>
+            )}
+          </p>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <div className="flex items-center gap-1.5">
+          <Filter className="w-4 h-4 text-gray-400" {...iconProps} />
+        </div>
+
+        {/* Time period */}
+        <div className="flex items-center rounded-lg border border-gray-200 bg-white overflow-hidden">
+          {([
+            ['all', 'Alles'],
+            ['week', 'Week'],
+            ['month', 'Maand'],
+            ['custom', 'Custom'],
+          ] as [TimePeriod, string][]).map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setPeriod(value)}
+              className={`px-3 h-9 text-sm transition-colors duration-[120ms] ${
+                period === value
+                  ? 'bg-gray-900 text-white font-medium'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {period === 'custom' && (
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+              className="h-9 text-sm border border-gray-200 rounded-lg px-3 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-accent-500"
+            />
+            <span className="text-gray-400 text-sm">t/m</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+              className="h-9 text-sm border border-gray-200 rounded-lg px-3 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-accent-500"
+            />
+          </div>
+        )}
+
+        {/* Source filter */}
+        <select
+          value={sourceFilter}
+          onChange={e => setSourceFilter(e.target.value)}
+          className="h-9 text-sm border border-gray-200 rounded-lg px-3 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-accent-500"
+        >
+          <option value="">Alle bronnen</option>
+          {sources.map(s => <option key={s} value={s!}>{s}</option>)}
+        </select>
+
+        {/* Type filter */}
+        <select
+          value={typeFilter}
+          onChange={e => setTypeFilter(e.target.value)}
+          className="h-9 text-sm border border-gray-200 rounded-lg px-3 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-accent-500"
+        >
+          <option value="">Alle types</option>
+          {types.map(t => <option key={t} value={t!}>{t}</option>)}
+        </select>
+
+        {(sourceFilter || typeFilter || period !== 'all') && (
+          <button
+            onClick={() => { setSourceFilter(''); setTypeFilter(''); setPeriod('all'); setDateFrom(''); setDateTo('') }}
+            className="h-9 px-3 text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 transition-colors duration-[120ms]"
+          >
+            <X className="w-3.5 h-3.5" {...iconProps} />
+            Reset
+          </button>
+        )}
+      </div>
+
+      {/* KPI Grid: 5 columns x 2 rows */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+        {/* Row 1 */}
+        <MetricCard
+          label="Totaal calls"
+          value={metrics.totalCalls}
+          prev={hasPreviousPeriod ? prevMetrics.totalCalls : undefined}
+        />
+        <MetricCard
+          label="Deals"
+          value={metrics.closedDeals}
+          prev={hasPreviousPeriod ? prevMetrics.closedDeals : undefined}
+        />
+        <MetricCard
+          label="Deal waarde"
+          value={eur(metrics.totalDealValue)}
+          rawCurrent={metrics.totalDealValue}
+          rawPrev={hasPreviousPeriod ? prevMetrics.totalDealValue : undefined}
+        />
+        <MetricCard
+          label="Cash collected"
+          value={eur(metrics.totalCashCollected)}
+          rawCurrent={metrics.totalCashCollected}
+          rawPrev={hasPreviousPeriod ? prevMetrics.totalCashCollected : undefined}
+        />
+        <MetricCard
+          label="Closing rate (booked)"
+          value={`${metrics.closingRate.toFixed(1)}%`}
+          rawCurrent={metrics.closingRate}
+          rawPrev={hasPreviousPeriod ? prevMetrics.closingRate : undefined}
+        />
+
+        {/* Row 2 */}
+        <MetricCard
+          label="Closing rate (taken)"
+          value={`${metrics.closingRateTaken.toFixed(1)}%`}
+          rawCurrent={metrics.closingRateTaken}
+          rawPrev={hasPreviousPeriod ? prevMetrics.closingRateTaken : undefined}
+        />
+        <MetricCard
+          label="Show-up rate"
+          value={`${metrics.showUpRate.toFixed(1)}%`}
+          rawCurrent={metrics.showUpRate}
+          rawPrev={hasPreviousPeriod ? prevMetrics.showUpRate : undefined}
+        />
+        <MetricCard
+          label="Gem. orderwaarde"
+          value={eur(metrics.avgOrderValue)}
+          rawCurrent={metrics.avgOrderValue}
+          rawPrev={hasPreviousPeriod ? prevMetrics.avgOrderValue : undefined}
+        />
+        <MetricCard
+          label="Cash / call (taken)"
+          value={eur(metrics.cashPerCallTaken)}
+          rawCurrent={metrics.cashPerCallTaken}
+          rawPrev={hasPreviousPeriod ? prevMetrics.cashPerCallTaken : undefined}
+        />
+        <MetricCard
+          label="Cash / call (booked)"
+          value={eur(metrics.cashPerCallBooked)}
+          rawCurrent={metrics.cashPerCallBooked}
+          rawPrev={hasPreviousPeriod ? prevMetrics.cashPerCallBooked : undefined}
+        />
+      </div>
+
+      {/* Secondary stats row */}
+      <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4">
+        <MiniStat label="No shows" value={metrics.noShows} invert />
+        <MiniStat label="Cancelled" value={metrics.cancelled} invert />
+        <MiniStat label="No deal" value={metrics.noDeals} invert />
+        <MiniStat label="Broke" value={metrics.broke} invert />
+        <MiniStat label="LTFU" value={metrics.ltfu} invert />
+        <MiniStat label="Follow ups" value={metrics.followUps} />
+        <MiniStat label="Offer accepted" value={metrics.offerAccepted} />
+      </div>
+    </div>
+  )
+}
+
+function MetricCard({ label, value, prev, rawCurrent, rawPrev }: {
+  label: string
+  value: string | number
+  prev?: number
+  rawCurrent?: number
+  rawPrev?: number
+}) {
+  const currentNum = rawCurrent ?? (typeof value === 'number' ? value : 0)
+  const previousNum = rawPrev ?? prev
+  const showComparison = previousNum !== undefined
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-5">
+      <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">{label}</div>
+      <div className="text-2xl font-semibold text-gray-900 tabular-nums">{value}</div>
+      {showComparison && (
+        <div className="mt-1">
+          <ChangeIndicator current={currentNum} previous={previousNum!} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MiniStat({ label, value, invert = false }: {
+  label: string
+  value: number
+  invert?: boolean
+}) {
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-4">
+      <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide mb-0.5">{label}</div>
+      <div className={`text-lg font-semibold tabular-nums ${value > 0 && invert ? 'text-red-600' : 'text-gray-900'}`}>
+        {value}
+      </div>
+    </div>
+  )
+}
