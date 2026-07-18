@@ -52,10 +52,14 @@ const styles: Record<string, string> = {
 
   // Lead triage stages
   LEAD: 'bg-blue-50 text-blue-700 border-blue-200',
+  'FOLLOW UP': 'bg-sky-50 text-sky-700 border-sky-200',
   'ATTEMPT 1': 'bg-amber-50 text-amber-700 border-amber-200',
   'ATTEMPT 2': 'bg-orange-50 text-orange-700 border-orange-200',
   'ATTEMPT 3': 'bg-rose-50 text-rose-700 border-rose-200',
   'ATTEMPT 4': 'bg-red-50 text-red-700 border-red-200',
+  'CLOSING CALL BOOKED': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  'LOST - NO INTEREST': 'bg-gray-50 text-gray-500 border-gray-200',
+  'LOST - BROKE': 'bg-gray-50 text-gray-500 border-gray-200',
   'TO SETTER': 'bg-emerald-50 text-emerald-700 border-emerald-200',
   'NOT QUALIFIED': 'bg-gray-50 text-gray-500 border-gray-200',
   ATHENA: 'bg-indigo-50 text-indigo-600 border-indigo-200',
@@ -66,7 +70,6 @@ const styles: Record<string, string> = {
   CONTACTED: 'bg-sky-50 text-sky-700 border-sky-200',
   'PRE CALL': 'bg-blue-50 text-blue-700 border-blue-200',
   'OFFER ACCEPTED': 'bg-violet-50 text-violet-700 border-violet-200',
-  'FOLLOW UP': 'bg-orange-50 text-orange-700 border-orange-200',
   LTFU: 'bg-rose-50 text-rose-700 border-rose-200',
   DEAL: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   'NO SHOW': 'bg-red-50 text-red-700 border-red-200',

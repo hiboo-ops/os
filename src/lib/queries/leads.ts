@@ -36,7 +36,7 @@ export interface Lead {
   closer: { id: string; name: string } | null
 }
 
-export const LEAD_STAGES = ['LEAD', 'ATTEMPT 1', 'ATTEMPT 2', 'ATTEMPT 3', 'ATTEMPT 4', 'TO SETTER'] as const
+export const LEAD_STAGES = ['LEAD', 'FOLLOW UP', 'ATTEMPT 1', 'ATTEMPT 2', 'ATTEMPT 3', 'ATTEMPT 4', 'CLOSING CALL BOOKED', 'LOST - NO INTEREST', 'LOST - BROKE'] as const
 export type LeadStage = typeof LEAD_STAGES[number]
 
 export async function getAllLeads(filters?: { source?: string; stage?: string; search?: string; activeOnly?: boolean }) {

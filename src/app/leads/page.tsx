@@ -20,12 +20,15 @@ const iconProps = { strokeWidth: 1.75 } as const
 const SLA_MINUTES = 5
 
 const STAGE_CONFIG: { key: string; label: string; color: string; borderColor: string }[] = [
-  { key: 'LEAD',      label: 'Lead',      color: 'bg-blue-50 text-blue-700',     borderColor: 'border-l-blue-400' },
-  { key: 'ATTEMPT 1', label: 'Attempt 1', color: 'bg-amber-50 text-amber-700',   borderColor: 'border-l-amber-400' },
-  { key: 'ATTEMPT 2', label: 'Attempt 2', color: 'bg-orange-50 text-orange-700', borderColor: 'border-l-orange-400' },
-  { key: 'ATTEMPT 3', label: 'Attempt 3', color: 'bg-rose-50 text-rose-700',     borderColor: 'border-l-rose-400' },
-  { key: 'ATTEMPT 4', label: 'Attempt 4', color: 'bg-red-50 text-red-700',       borderColor: 'border-l-red-400' },
-  { key: 'TO SETTER', label: 'To Setter', color: 'bg-emerald-50 text-emerald-700', borderColor: 'border-l-emerald-500' },
+  { key: 'LEAD',                label: 'Lead',                color: 'bg-blue-50 text-blue-700',       borderColor: 'border-l-blue-400' },
+  { key: 'FOLLOW UP',           label: 'Follow Up',           color: 'bg-sky-50 text-sky-700',         borderColor: 'border-l-sky-400' },
+  { key: 'ATTEMPT 1',           label: 'Attempt 1',           color: 'bg-amber-50 text-amber-700',     borderColor: 'border-l-amber-400' },
+  { key: 'ATTEMPT 2',           label: 'Attempt 2',           color: 'bg-orange-50 text-orange-700',   borderColor: 'border-l-orange-400' },
+  { key: 'ATTEMPT 3',           label: 'Attempt 3',           color: 'bg-rose-50 text-rose-700',       borderColor: 'border-l-rose-400' },
+  { key: 'ATTEMPT 4',           label: 'Attempt 4',           color: 'bg-red-50 text-red-700',         borderColor: 'border-l-red-400' },
+  { key: 'CLOSING CALL BOOKED', label: 'Call Booked',         color: 'bg-emerald-50 text-emerald-700', borderColor: 'border-l-emerald-500' },
+  { key: 'LOST - NO INTEREST',  label: 'Lost - No Interest',  color: 'bg-gray-50 text-gray-500',       borderColor: 'border-l-gray-300' },
+  { key: 'LOST - BROKE',        label: 'Lost - Broke',        color: 'bg-gray-50 text-gray-500',       borderColor: 'border-l-gray-300' },
 ]
 
 function timeAgo(dateStr: string | null): string {
@@ -377,7 +380,7 @@ function CallActionModal({ lead, type: initialType, onClose, onDone }: {
 }) {
   const [view, setView] = useState<'choose' | 'answered'>(initialType === 'answered' ? 'answered' : 'choose')
   const [notes, setNotes] = useState('')
-  const [nextStage, setNextStage] = useState<string>('TO SETTER')
+  const [nextStage, setNextStage] = useState<string>('FOLLOW UP')
   const [saving, setSaving] = useState(false)
 
   const handleNotAnswered = async () => {
@@ -464,8 +467,10 @@ function CallActionModal({ lead, type: initialType, onClose, onDone }: {
               <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Resultaat</label>
               <select value={nextStage} onChange={e => setNextStage(e.target.value)}
                 className="mt-1.5 w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700">
-                <option value="TO SETTER">To Setter (gekwalificeerd)</option>
-                <option value="NOT QUALIFIED">Not Qualified</option>
+                <option value="FOLLOW UP">Follow Up</option>
+                <option value="CLOSING CALL BOOKED">Closing Call Booked</option>
+                <option value="LOST - NO INTEREST">Lost - No Interest</option>
+                <option value="LOST - BROKE">Lost - Broke</option>
               </select>
             </div>
             <div>
@@ -604,7 +609,7 @@ function LeadDetail({ lead, onClose, onUpdate }: { lead: Lead; onClose: () => vo
               <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Stage</label>
               <select value={form.stage} onChange={e => setForm({ ...form, stage: e.target.value })}
                 className="mt-1.5 w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700">
-                {[...LEAD_STAGES, 'NOT QUALIFIED'].map(s => <option key={s} value={s}>{s}</option>)}
+                {LEAD_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div>
