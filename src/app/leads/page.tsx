@@ -372,11 +372,12 @@ function LeadCard({ lead, stage, onClick, onCallAction }: {
 }
 
 /* ── Call Action Modal (opgenomen / niet opgenomen) ── */
-function CallActionModal({ lead, type, onClose, onDone }: {
+function CallActionModal({ lead, type: initialType, onClose, onDone }: {
   lead: Lead; type: 'answered' | 'not_answered'; onClose: () => void; onDone: () => void
 }) {
+  const [view, setView] = useState<'choose' | 'answered'>(initialType === 'answered' ? 'answered' : 'choose')
   const [notes, setNotes] = useState('')
-  const [nextStage, setNextStage] = useState<string>(type === 'answered' ? 'TO SETTER' : '')
+  const [nextStage, setNextStage] = useState<string>('TO SETTER')
   const [saving, setSaving] = useState(false)
 
   const handleNotAnswered = async () => {
@@ -441,22 +442,23 @@ function CallActionModal({ lead, type, onClose, onDone }: {
           <button onClick={onClose} className="p-1 rounded-md text-gray-400 hover:bg-gray-100"><X className="w-5 h-5" /></button>
         </div>
 
-        {/* Two action buttons */}
-        {type === 'not_answered' && (
+        {/* Step 1: Choose result */}
+        {view === 'choose' && (
           <div className="space-y-3">
             <p className="text-sm text-gray-600">Wat was het resultaat?</p>
             <Button variant="secondary" size="md" onClick={handleNotAnswered} disabled={saving} className="w-full justify-center">
               <PhoneMissed className="w-4 h-4 text-amber-600" {...iconProps} />
               Niet opgenomen
             </Button>
-            <Button variant="primary" size="md" onClick={() => setCallAction_internal('answered')} className="w-full justify-center">
+            <Button variant="primary" size="md" onClick={() => setView('answered')} className="w-full justify-center">
               <CheckCircle2 className="w-4 h-4" {...iconProps} />
               Opgenomen
             </Button>
           </div>
         )}
 
-        {type === 'answered' && (
+        {/* Step 2: Answered → notes + result */}
+        {view === 'answered' && (
           <div className="space-y-4">
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Resultaat</label>
@@ -480,17 +482,6 @@ function CallActionModal({ lead, type, onClose, onDone }: {
       </div>
     </div>
   )
-
-  // Internal state change (used to switch from 'not_answered' view to 'answered' view)
-  function setCallAction_internal(t: 'answered' | 'not_answered') {
-    // We can't change the type prop, so handle via parent
-    onClose()
-    setTimeout(() => {
-      // Re-trigger with answered type
-      const event = new CustomEvent('call-answered', { detail: { lead } })
-      window.dispatchEvent(event)
-    }, 50)
-  }
 }
 
 /* ── Lead Detail Slide-out ── */
