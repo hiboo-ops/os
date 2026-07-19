@@ -96,8 +96,69 @@ export default function EventsPage() {
         </div>
       )}
 
+      {/* Webhook setup */}
+      <CalendlyWebhookSetup />
+
       {showAdd && (
         <AddEventModal closers={closers} onClose={() => setShowAdd(false)} onCreated={loadData} />
+      )}
+    </div>
+  )
+}
+
+/* ── Calendly Webhook Setup ── */
+function CalendlyWebhookSetup() {
+  const [token, setToken] = useState('')
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [message, setMessage] = useState('')
+
+  const setupWebhook = async () => {
+    if (!token.trim()) return
+    setStatus('loading')
+    try {
+      const res = await fetch('/api/webhooks/calendly/setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: token.trim() }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setStatus('success')
+        setMessage(data.message || 'Webhook connected!')
+      } else {
+        setStatus('error')
+        setMessage(data.error || 'Setup failed')
+      }
+    } catch {
+      setStatus('error')
+      setMessage('Connection failed')
+    }
+  }
+
+  return (
+    <div className="mt-8 bg-white rounded-lg border border-gray-200 p-5">
+      <h2 className="text-sm font-medium text-gray-900 mb-1">Calendly Webhook Integration</h2>
+      <p className="text-xs text-gray-500 mb-4">
+        Connect Calendly to automatically create call records when leads book.
+        Get your PAT from{' '}
+        <a href="https://calendly.com/integrations/api_webhooks" target="_blank" rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-700 underline">Calendly Settings → API</a>.
+      </p>
+      <div className="flex gap-2">
+        <input type="password" value={token} onChange={e => setToken(e.target.value)}
+          placeholder="Paste your Calendly Personal Access Token..."
+          className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700" />
+        <Button variant="primary" size="md" onClick={setupWebhook} disabled={status === 'loading'}>
+          {status === 'loading' ? 'Connecting...' : 'Connect'}
+        </Button>
+      </div>
+      {status === 'success' && (
+        <div className="mt-3 flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2">
+          <Calendar className="w-4 h-4" {...iconProps} /> {message}
+        </div>
+      )}
+      {status === 'error' && (
+        <div className="mt-3 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{message}</div>
       )}
     </div>
   )
