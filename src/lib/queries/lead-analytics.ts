@@ -27,7 +27,6 @@ interface SourceRow {
 export async function getFunnelMetrics(dateFrom?: string, dateTo?: string, source?: string): Promise<FunnelMetrics> {
   let query = supabase.from('leads')
     .select('id, stage, call_id, first_called_at, is_legacy')
-    .eq('is_legacy', false)
     .limit(10000)
 
   if (dateFrom) query = query.gte('date_received', dateFrom)
@@ -78,7 +77,6 @@ export async function getFunnelMetrics(dateFrom?: string, dateTo?: string, sourc
 export async function getSourcePerformance(dateFrom?: string, dateTo?: string): Promise<SourceRow[]> {
   let query = supabase.from('leads')
     .select('id, source, stage, call_id, first_called_at, is_legacy')
-    .eq('is_legacy', false)
     .limit(10000)
 
   if (dateFrom) query = query.gte('date_received', dateFrom)
