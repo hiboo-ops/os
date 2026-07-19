@@ -51,12 +51,7 @@ export async function getAllLeads(filters?: { source?: string; stage?: string; s
   while (hasMore) {
     let query = supabase
       .from('leads')
-      .select(`
-        *,
-        creator:creators(id, name),
-        triage_caller:setters(id, name),
-        closer:closers(id, name)
-      `)
+      .select('*')
       .order('date_received', { ascending: true })
       .range(from, from + PAGE_SIZE - 1)
 
@@ -64,7 +59,8 @@ export async function getAllLeads(filters?: { source?: string; stage?: string; s
     if (filters?.stage) query = query.eq('stage', filters.stage)
     if (filters?.activeOnly) query = query.in('stage', [...LEAD_STAGES])
 
-    const { data } = await query
+    const { data, error } = await query
+    if (error) { console.error('Leads query error:', error); break }
     const page = (data || []) as unknown as Lead[]
     allResults = allResults.concat(page)
     hasMore = page.length === PAGE_SIZE
