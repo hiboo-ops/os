@@ -1,7 +1,12 @@
 import { supabase } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+import { getAuthUser, requireRole } from '@/lib/auth'
 
 export async function POST(req: NextRequest) {
+  const user = await getAuthUser()
+  const denied = requireRole(user, ['ADMIN', 'CLOSER'])
+  if (denied) return denied
+
   const body = await req.json()
 
   const {

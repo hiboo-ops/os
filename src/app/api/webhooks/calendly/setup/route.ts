@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getAuthUser, requireRole } from '@/lib/auth'
 
 /**
  * Registers Calendly webhook subscription using server-side PAT from env var.
- * POST /api/webhooks/calendly/setup (no body needed)
+ * POST /api/webhooks/calendly/setup (ADMIN only)
  */
 
 const CALENDLY_API = 'https://api.calendly.com'
 
 export async function POST(req: NextRequest) {
+  const user = await getAuthUser()
+  const denied = requireRole(user, ['ADMIN'])
+  if (denied) return denied
+
   const token = process.env.CALENDLY_PAT
   if (!token) {
     return NextResponse.json({ error: 'CALENDLY_PAT env var not configured' }, { status: 500 })
@@ -76,8 +81,12 @@ export async function POST(req: NextRequest) {
   })
 }
 
-// GET: check connection status
+// GET: check connection status (ADMIN only)
 export async function GET() {
+  const user = await getAuthUser()
+  const denied = requireRole(user, ['ADMIN'])
+  if (denied) return denied
+
   const token = process.env.CALENDLY_PAT
   if (!token) {
     return NextResponse.json({ connected: false, error: 'CALENDLY_PAT not configured' })

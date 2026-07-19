@@ -1,7 +1,12 @@
 import { supabase } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+import { getAuthUser, requireRole } from '@/lib/auth'
 
 export async function GET(req: NextRequest) {
+  const user = await getAuthUser()
+  const denied = requireRole(user, ['ADMIN', 'CLOSER', 'SETTER'])
+  if (denied) return denied
+
   const { searchParams } = req.nextUrl
   const week = searchParams.get('week')
   const month = searchParams.get('month')
@@ -38,6 +43,10 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const user = await getAuthUser()
+  const denied = requireRole(user, ['ADMIN', 'CLOSER', 'SETTER'])
+  if (denied) return denied
+
   const body = await req.json()
 
   const { name, email, phone, instagram, date_start_time, closer_id, setter_id,
@@ -74,6 +83,10 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const user = await getAuthUser()
+  const denied = requireRole(user, ['ADMIN', 'CLOSER'])
+  if (denied) return denied
+
   const body = await req.json()
   const { id, ...updates } = body
 

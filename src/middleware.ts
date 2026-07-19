@@ -4,8 +4,14 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Skip auth check for login page and API routes
-  if (pathname === '/login' || pathname.startsWith('/api/')) {
+  // Skip auth for login and Calendly webhook (external, uses own verification)
+  if (pathname === '/login' || pathname === '/api/webhooks/calendly') {
+    return NextResponse.next()
+  }
+
+  // API routes handle their own auth via getAuthUser() — let them through
+  // (the auth check happens inside each route handler with role verification)
+  if (pathname.startsWith('/api/')) {
     return NextResponse.next()
   }
 
