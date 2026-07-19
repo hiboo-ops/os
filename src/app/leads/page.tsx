@@ -96,7 +96,7 @@ export default function LeadsPage() {
   const [search, setSearch] = useState('')
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
-  const [view, setView] = useState<ViewMode>('queue')
+  const [view, setView] = useState<ViewMode>('kanban')
   const [showArchive, setShowArchive] = useState(false)
   const [callAction, setCallAction] = useState<Lead | null>(null)
   const [stageFilter, setStageFilter] = useState('')
