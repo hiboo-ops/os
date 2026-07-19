@@ -22,33 +22,30 @@ interface SourceRow {
   endToEndRate: number
 }
 
-// ─── Helper: fetch all rows with parallel pagination ────────────────────────
+// ─── Helper: fetch all rows with pagination ─────────────────────────────────
 
 type LeadRow = Record<string, unknown>
 
 async function fetchAllLeads(select: string, filters?: { dateFrom?: string; dateTo?: string; source?: string }): Promise<LeadRow[]> {
   const PAGE_SIZE = 1000
+  let all: LeadRow[] = []
+  let from = 0
+  let hasMore = true
 
-  let countQuery = supabase.from('leads').select('id', { count: 'exact', head: true })
-  if (filters?.dateFrom) countQuery = countQuery.gte('date_received', filters.dateFrom)
-  if (filters?.dateTo) countQuery = countQuery.lte('date_received', filters.dateTo)
-  if (filters?.source) countQuery = countQuery.eq('source', filters.source)
-
-  const { count } = await countQuery
-  const total = count || 0
-  if (total === 0) return []
-
-  const batches = Math.ceil(total / PAGE_SIZE)
-  const promises = Array.from({ length: batches }, (_, i) => {
-    let q = supabase.from('leads').select(select).range(i * PAGE_SIZE, (i + 1) * PAGE_SIZE - 1)
+  while (hasMore) {
+    let q = supabase.from('leads').select(select).range(from, from + PAGE_SIZE - 1)
     if (filters?.dateFrom) q = q.gte('date_received', filters.dateFrom)
     if (filters?.dateTo) q = q.lte('date_received', filters.dateTo)
     if (filters?.source) q = q.eq('source', filters.source)
-    return q
-  })
 
-  const results = await Promise.all(promises)
-  return results.flatMap(r => (r.data || []) as LeadRow[])
+    const { data } = await q
+    const page = (data || []) as LeadRow[]
+    all = all.concat(page)
+    hasMore = page.length === PAGE_SIZE
+    from += PAGE_SIZE
+  }
+
+  return all
 }
 
 // ─── Funnel Metrics ─────────────────────────────────────────────────────────
