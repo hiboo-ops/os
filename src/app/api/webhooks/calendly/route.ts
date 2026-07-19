@@ -27,11 +27,10 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('Calendly webhook error:', err)
     await supabase.from('webhook_logs').insert({
       source: 'calendly-error',
       event,
-      payload: { error: String(err), original: payload },
+      payload: { error: String(err), stack: (err as Error)?.stack },
     })
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
@@ -40,7 +39,6 @@ export async function POST(req: NextRequest) {
 function getWeekAndMonth(dateStr: string | null): { week: number; month: number } {
   const d = dateStr ? new Date(dateStr) : new Date()
   const month = d.getMonth() + 1
-  // ISO week number
   const tmp = new Date(d.getTime())
   tmp.setHours(0, 0, 0, 0)
   tmp.setDate(tmp.getDate() + 3 - ((tmp.getDay() + 6) % 7))
@@ -55,7 +53,7 @@ async function handleInviteeCreated(p: Record<string, any>) {
   const email = ((p.email as string) || '').toLowerCase()
   const tracking = p.tracking as Record<string, any> || {}
   const scheduledEvent = p.scheduled_event as Record<string, any> || {}
-  const questionsAndAnswers = p.questions_and_answers as { question: string; answer: string; position: number }[] || []
+  const questionsAndAnswers = p.questions_and_answers as { question: string; answer: string }[] || []
 
   const eventName = (scheduledEvent.name as string) || null
   const startTime = (scheduledEvent.start_time as string) || null
@@ -87,7 +85,6 @@ async function handleInviteeCreated(p: Record<string, any>) {
       .single()
 
     if (existing) {
-      // Update existing call instead of creating duplicate
       await supabase.from('calls').update({
         date_start_time: startTime,
         meeting_link: meetingLink,
@@ -98,15 +95,52 @@ async function handleInviteeCreated(p: Record<string, any>) {
     }
   }
 
-  // ── FIND LEAD ──
+  // ── MATCH CALENDLY EVENT CONFIG ──
+  let eventConfig: { default_source: string | null; search_leads_first: boolean } | null = null
+  if (eventName) {
+    const { data } = await supabase
+      .from('calendly_events')
+      .select('*')
+      .ilike('name', `%${eventName.replace(/[^\w\s]/g, '')}%`)
+      .limit(1)
+      .single()
+    if (data) {
+      const d = data as unknown as Record<string, unknown>
+      eventConfig = {
+        default_source: (d.default_source as string) || null,
+        search_leads_first: d.search_leads_first !== false,
+      }
+    }
+  }
+
+  const searchLeadsFirst = eventConfig?.search_leads_first ?? true
+  const eventDefaultSource = eventConfig?.default_source || utmSource || 'CALENDLY'
+
+  // ── CLOSER: from Calendly host (event_memberships) ──
+  let closerId: string | null = null
+  const memberships = scheduledEvent.event_memberships as { user_email: string }[] || []
+  if (memberships.length > 0) {
+    const hostEmail = memberships[0].user_email?.toLowerCase()
+    if (hostEmail) {
+      const { data: closer } = await supabase
+        .from('closers')
+        .select('id')
+        .ilike('email', hostEmail)
+        .limit(1)
+        .single()
+      if (closer) closerId = closer.id
+    }
+  }
+
+  // ── LEAD LOOKUP ──
   let leadId: string | null = null
   let setterId: string | null = null
-  let leadSource: string | null = null
-  let leadCreatorName: string | null = utmCampaign
-  let leadAdCampaign: string | null = utmContent
+  let callSource: string = eventDefaultSource
   let triageNotes: string | null = null
+  let creatorName: string | null = utmCampaign
+  let adCampaign: string | null = utmContent
 
-  if (email) {
+  if (searchLeadsFirst && email) {
     const { data: lead } = await supabase
       .from('leads')
       .select('id, triage_caller_id, creator_name, source, ad_campaign, triage_notes')
@@ -118,10 +152,10 @@ async function handleInviteeCreated(p: Record<string, any>) {
     if (lead) {
       leadId = lead.id
       setterId = lead.triage_caller_id
-      leadSource = lead.source
       triageNotes = lead.triage_notes
-      if (lead.creator_name) leadCreatorName = lead.creator_name
-      if (lead.ad_campaign) leadAdCampaign = lead.ad_campaign
+      if (lead.source) callSource = lead.source
+      if (lead.creator_name) creatorName = lead.creator_name
+      if (lead.ad_campaign) adCampaign = lead.ad_campaign
 
       await supabase.from('leads').update({
         stage: 'CLOSING CALL BOOKED',
@@ -129,46 +163,30 @@ async function handleInviteeCreated(p: Record<string, any>) {
         phone: phone || undefined,
         quiz_answers: questions.length > 0 ? questions : undefined,
       }).eq('id', lead.id)
-    } else {
-      // No existing lead → create one
-      const { data: newLead } = await supabase.from('leads').insert({
-        name,
-        email,
-        phone,
-        source: utmSource || 'CALENDLY',
-        stage: 'CLOSING CALL BOOKED',
-        date_received: new Date().toISOString(),
-        scheduled_call_date: startTime,
-        creator_name: leadCreatorName,
-        ad_campaign: leadAdCampaign,
-        quiz_answers: questions.length > 0 ? questions : null,
-      }).select('id').single()
-      if (newLead) leadId = newLead.id
     }
   }
 
-  // ── SOURCE: lead source takes priority over UTM ──
-  const callSource = leadSource || utmSource
-
-  // ── FIND CLOSER from calendly_events table ──
-  let closerId: string | null = null
-  if (eventName) {
-    const { data: calEvent } = await supabase
-      .from('calendly_events')
-      .select('default_closer_id')
-      .ilike('name', `%${eventName.replace(/[^\w\s]/g, '')}%`)
-      .limit(1)
-      .single()
-
-    if (calEvent?.default_closer_id) {
-      closerId = calEvent.default_closer_id
-    }
+  // No lead found or search disabled → create new lead
+  if (!leadId && email) {
+    const { data: newLead } = await supabase.from('leads').insert({
+      name,
+      email,
+      phone,
+      source: callSource,
+      stage: 'CLOSING CALL BOOKED',
+      date_received: new Date().toISOString(),
+      sla_deadline: new Date(Date.now() + 5 * 60000).toISOString(),
+      scheduled_call_date: startTime,
+      creator_name: creatorName,
+      ad_campaign: adCampaign,
+      quiz_answers: questions.length > 0 ? questions : null,
+    }).select('id').single()
+    if (newLead) leadId = newLead.id
   }
-
-  // ── WEEK/MONTH ──
-  const { week, month } = getWeekAndMonth(startTime)
 
   // ── CREATE CALL ──
+  const { week, month } = getWeekAndMonth(startTime)
+
   const { data: call } = await supabase.from('calls').insert({
     name,
     email: email || null,
@@ -178,7 +196,7 @@ async function handleInviteeCreated(p: Record<string, any>) {
     closer_id: closerId,
     setter_id: setterId,
     source: callSource,
-    source_type: [leadCreatorName, leadAdCampaign].filter(Boolean).join(' | ') || utmContent || null,
+    source_type: [creatorName, adCampaign].filter(Boolean).join(' | ') || null,
     result: 'CALL BOOKED',
     event_type: eventName,
     questions: questions.length > 0 ? questions : null,
@@ -191,7 +209,6 @@ async function handleInviteeCreated(p: Record<string, any>) {
     month,
   }).select('id').single()
 
-  // ── LINK CALL TO LEAD ──
   if (call && leadId) {
     await supabase.from('leads').update({ call_id: call.id }).eq('id', leadId)
   }
@@ -200,52 +217,25 @@ async function handleInviteeCreated(p: Record<string, any>) {
 async function handleInviteeCanceled(p: Record<string, any>) {
   const email = ((p.email as string) || '').toLowerCase()
   const inviteeUri = (p.uri as string) || null
-  const cancelReason = (p.canceler_type as string) || null
 
   if (!email && !inviteeUri) return
 
-  // Find call by invitee URI first (most reliable), then by email
   let callId: string | null = null
-
   if (inviteeUri) {
-    const { data } = await supabase
-      .from('calls')
-      .select('id')
-      .eq('calendly_invitee_uri', inviteeUri)
-      .single()
+    const { data } = await supabase.from('calls').select('id').eq('calendly_invitee_uri', inviteeUri).single()
     if (data) callId = data.id
   }
-
   if (!callId && email) {
-    const { data } = await supabase
-      .from('calls')
-      .select('id')
-      .eq('email', email)
-      .eq('result', 'CALL BOOKED')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
+    const { data } = await supabase.from('calls').select('id').eq('email', email).eq('result', 'CALL BOOKED').order('created_at', { ascending: false }).limit(1).single()
     if (data) callId = data.id
   }
 
   if (callId) {
-    await supabase.from('calls').update({
-      result: 'CANCELLED BY LEAD',
-      no_deal_reason: cancelReason,
-    }).eq('id', callId)
+    await supabase.from('calls').update({ result: 'CANCELLED BY LEAD' }).eq('id', callId)
   }
 
-  // Revert lead stage
   if (email) {
-    const { data: lead } = await supabase
-      .from('leads')
-      .select('id')
-      .eq('email', email)
-      .eq('stage', 'CLOSING CALL BOOKED')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
-
+    const { data: lead } = await supabase.from('leads').select('id').eq('email', email).eq('stage', 'CLOSING CALL BOOKED').order('created_at', { ascending: false }).limit(1).single()
     if (lead) {
       await supabase.from('leads').update({ stage: 'FOLLOW UP' }).eq('id', lead.id)
     }

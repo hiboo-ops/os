@@ -8,7 +8,7 @@ export async function GET() {
 
   const { data } = await supabase
     .from('calendly_events')
-    .select('*, closer:closers(id, name)')
+    .select('*')
     .eq('active', true)
     .order('name')
   return NextResponse.json(data || [])
@@ -20,7 +20,13 @@ export async function POST(req: NextRequest) {
   if (denied) return denied
 
   const body = await req.json()
-  const { error, data } = await supabase.from('calendly_events').insert(body).select().single()
+  const { error, data } = await supabase.from('calendly_events').insert({
+    name: body.name,
+    url: body.url,
+    description: body.description || null,
+    default_source: body.default_source || null,
+    search_leads_first: body.search_leads_first ?? true,
+  }).select().single()
   if (error) return NextResponse.json({ error: 'Failed to create event' }, { status: 500 })
   return NextResponse.json(data)
 }
