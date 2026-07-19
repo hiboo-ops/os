@@ -43,34 +43,44 @@ export const LEAD_STAGES = ['LEAD', 'FOLLOW UP', 'ATTEMPT 1', 'ATTEMPT 2', 'ATTE
 export type LeadStage = typeof LEAD_STAGES[number]
 
 export async function getAllLeads(filters?: { source?: string; stage?: string; search?: string; activeOnly?: boolean }) {
-  let query = supabase
-    .from('leads')
-    .select(`
-      *,
-      creator:creators(id, name),
-      triage_caller:setters(id, name),
-      closer:closers(id, name)
-    `)
-    .order('date_received', { ascending: true })
-    .limit(5000)
+  const PAGE_SIZE = 1000
+  let allResults: Lead[] = []
+  let from = 0
+  let hasMore = true
 
-  if (filters?.source) query = query.eq('source', filters.source)
-  if (filters?.stage) query = query.eq('stage', filters.stage)
-  if (filters?.activeOnly) query = query.in('stage', [...LEAD_STAGES])
+  while (hasMore) {
+    let query = supabase
+      .from('leads')
+      .select(`
+        *,
+        creator:creators(id, name),
+        triage_caller:setters(id, name),
+        closer:closers(id, name)
+      `)
+      .order('date_received', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1)
 
-  const { data } = await query
-  let results = (data || []) as unknown as Lead[]
+    if (filters?.source) query = query.eq('source', filters.source)
+    if (filters?.stage) query = query.eq('stage', filters.stage)
+    if (filters?.activeOnly) query = query.in('stage', [...LEAD_STAGES])
+
+    const { data } = await query
+    const page = (data || []) as unknown as Lead[]
+    allResults = allResults.concat(page)
+    hasMore = page.length === PAGE_SIZE
+    from += PAGE_SIZE
+  }
 
   if (filters?.search) {
     const q = filters.search.toLowerCase()
-    results = results.filter(l =>
+    allResults = allResults.filter(l =>
       l.name?.toLowerCase().includes(q) ||
       l.email?.toLowerCase().includes(q) ||
       l.phone?.includes(q)
     )
   }
 
-  return results
+  return allResults
 }
 
 export async function getLeadById(id: string) {
@@ -89,8 +99,17 @@ export async function getLeadById(id: string) {
 }
 
 export async function getLeadStats() {
-  const { data } = await supabase.from('leads').select('id, stage, source, first_called_at, date_received, time_to_call_minutes').limit(5000)
-  const all = data || []
+  type StatRow = { id: string; stage: string; source: string | null; first_called_at: string | null; date_received: string | null; time_to_call_minutes: number | null }
+  let all: StatRow[] = []
+  let from = 0
+  let hasMore = true
+  while (hasMore) {
+    const { data } = await supabase.from('leads').select('id, stage, source, first_called_at, date_received, time_to_call_minutes').range(from, from + 999)
+    const page = (data || []) as unknown as StatRow[]
+    all = all.concat(page)
+    hasMore = page.length === 1000
+    from += 1000
+  }
   const active = all.filter(l => LEAD_STAGES.includes(l.stage as LeadStage))
 
   // Avg time to call (only for leads that have been called)
