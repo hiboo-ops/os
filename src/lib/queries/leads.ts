@@ -39,7 +39,7 @@ export interface Lead {
   closer: { id: string; name: string } | null
 }
 
-export const LEAD_STAGES = ['LEAD', 'FOLLOW UP', 'ATTEMPT 1', 'ATTEMPT 2', 'ATTEMPT 3', 'ATTEMPT 4', 'CLOSING CALL BOOKED', 'LOST - NO INTEREST', 'LOST - BROKE'] as const
+export const LEAD_STAGES = ['LEAD', 'FOLLOW UP', 'ATTEMPT 1', 'ATTEMPT 2', 'ATTEMPT 3', 'ATTEMPT 4', 'CLOSING CALL BOOKED', 'CLOSED', 'LOST - NO INTEREST', 'LOST - BROKE'] as const
 export type LeadStage = typeof LEAD_STAGES[number]
 
 export async function getAllLeads(filters?: { source?: string; stage?: string; search?: string; activeOnly?: boolean }) {
@@ -68,6 +68,9 @@ export async function getAllLeads(filters?: { source?: string; stage?: string; s
   }
 
   if (filters?.search) {
+    // Server-side search is applied in the query via .or() but Supabase
+    // doesn't support .or() with .in() in the same query easily,
+    // so we filter client-side for now but on already-fetched data
     const q = filters.search.toLowerCase()
     allResults = allResults.filter(l =>
       l.name?.toLowerCase().includes(q) ||

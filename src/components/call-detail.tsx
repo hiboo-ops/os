@@ -159,6 +159,7 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
             <InfoRow icon={UserCheck} label="Closer" value={call.closer?.name} />
             <InfoRow icon={User} label="Setter" value={call.setter?.name} />
             <InfoRow icon={Globe} label="Source" value={call.source} />
+            {call.source_type && <InfoRow icon={Globe} label="Creator / Campaign" value={call.source_type} />}
             <InfoRow icon={Video} label="Event type" value={call.event_type} />
           </div>
         </div>

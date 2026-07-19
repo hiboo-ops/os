@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { supabase } from '@/lib/supabase'
 import { getAllLeads, getLeadStats, Lead, LEAD_STAGES } from '@/lib/queries/leads'
 import { getSLAStatus } from '@/lib/queries/lead-analytics'
 import { KpiCard } from '@/components/ui/card'
@@ -37,6 +38,7 @@ const STAGE_CONFIG: { key: string; label: string; color: string; borderColor: st
   { key: 'ATTEMPT 3',           label: 'ATTEMPT 3',           color: 'bg-rose-50 text-rose-700',       borderColor: 'border-l-rose-400' },
   { key: 'ATTEMPT 4',           label: 'ATTEMPT 4',           color: 'bg-red-50 text-red-700',         borderColor: 'border-l-red-400' },
   { key: 'CLOSING CALL BOOKED', label: 'CLOSING CALL BOOKED', color: 'bg-emerald-50 text-emerald-700', borderColor: 'border-l-emerald-500' },
+  { key: 'CLOSED',              label: 'CLOSED',              color: 'bg-emerald-100 text-emerald-800', borderColor: 'border-l-emerald-600' },
   { key: 'LOST - NO INTEREST',  label: 'LOST - NO INTEREST',  color: 'bg-gray-50 text-gray-500',       borderColor: 'border-l-gray-300' },
   { key: 'LOST - BROKE',        label: 'LOST - BROKE',        color: 'bg-gray-50 text-gray-500',       borderColor: 'border-l-gray-300' },
 ]
@@ -763,10 +765,18 @@ function LeadDetail({ lead, onClose, onUpdate }: { lead: Lead; onClose: () => vo
           </div>
         </div>
 
+        {/* Call link + status */}
+        {lead.call_id && (
+          <div className="px-6 py-5 border-b border-gray-100">
+            <h3 className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-3">Linked Call</h3>
+            <CallStatusBadge callId={lead.call_id} />
+          </div>
+        )}
+
         {/* Calendly for CLOSING CALL BOOKED */}
         {lead.stage === 'CLOSING CALL BOOKED' && lead.calendly_booking_url && (
           <div className="px-6 py-5 border-b border-gray-100">
-            <h3 className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-3">Closing Call</h3>
+            <h3 className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-3">Calendly</h3>
             <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
               <a href={lead.calendly_booking_url} target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-2 text-sm text-emerald-700 font-medium hover:text-emerald-800">
@@ -856,6 +866,32 @@ function AddLeadModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
           </Button>
         </div>
       </div>
+    </div>
+  )
+}
+
+/* ── Call Status Badge (for lead detail backlink) ── */
+function CallStatusBadge({ callId }: { callId: string }) {
+  const [call, setCall] = useState<{ result: string; date_start_time: string | null } | null>(null)
+
+  useEffect(() => {
+    supabase.from('calls').select('result, date_start_time').eq('id', callId).single()
+      .then(({ data }) => { if (data) setCall(data as typeof call) })
+  }, [callId])
+
+  if (!call) return <span className="text-xs text-gray-400">Loading...</span>
+
+  return (
+    <div className="bg-gray-50 rounded-lg px-4 py-3 flex items-center justify-between">
+      <div>
+        <Badge status={call.result || 'CALL BOOKED'} />
+        {call.date_start_time && (
+          <div className="text-[11px] text-gray-500 mt-1">{formatDate(call.date_start_time)}</div>
+        )}
+      </div>
+      <a href="/sales/pipeline" className="text-xs text-blue-600 hover:text-blue-700 font-medium">
+        View in pipeline →
+      </a>
     </div>
   )
 }

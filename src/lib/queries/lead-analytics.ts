@@ -59,7 +59,7 @@ export async function getFunnelMetrics(dateFrom?: string, dateTo?: string, sourc
   const leads = leadsData || []
 
   const totalLeads = leads.length
-  const toSetterLeads = leads.filter(l => l.stage === 'TO SETTER' || l.call_id)
+  const toSetterLeads = leads.filter(l => l.stage === 'CLOSING CALL BOOKED' || l.stage === 'CLOSED' || l.call_id)
   const toSetterCount = toSetterLeads.length
   const setterRate = totalLeads > 0 ? (toSetterCount / totalLeads) * 100 : 0
 
@@ -77,7 +77,7 @@ export async function getFunnelMetrics(dateFrom?: string, dateTo?: string, sourc
 
     const calls = callsData || []
     callCount = calls.length
-    const dealCalls = calls.filter(c => c.result === 'DEAL')
+    const dealCalls = calls.filter(c => c.result === 'CLOSED')
     deals = dealCalls.length
     revenue = dealCalls.reduce((sum, c) => sum + (c.deal_value || 0), 0)
   }
@@ -124,7 +124,7 @@ export async function getSourcePerformance(dateFrom?: string, dateTo?: string): 
   const rows: SourceRow[] = []
   for (const [source, sourceLeads] of sourceMap) {
     const total = sourceLeads.length
-    const toSetter = sourceLeads.filter(l => l.stage === 'TO SETTER' || l.call_id).length
+    const toSetter = sourceLeads.filter(l => l.stage === 'CLOSING CALL BOOKED' || l.stage === 'CLOSED' || l.call_id).length
     const setterRate = total > 0 ? (toSetter / total) * 100 : 0
 
     let deals = 0
@@ -175,8 +175,8 @@ export async function getTriagePerformance(dateFrom?: string, dateTo?: string): 
   const rows: TriageRow[] = []
   for (const [callerId, callerLeads] of callerMap) {
     const called = callerLeads.length
-    const connected = callerLeads.filter(l => l.stage === 'TO SETTER' || l.stage === 'NOT QUALIFIED').length
-    const toSetter = callerLeads.filter(l => l.stage === 'TO SETTER').length
+    const connected = callerLeads.filter(l => l.stage === 'CLOSING CALL BOOKED' || l.stage === 'CLOSED' || l.stage === 'NOT QUALIFIED').length
+    const toSetter = callerLeads.filter(l => l.stage === 'CLOSING CALL BOOKED' || l.stage === 'CLOSED').length
 
     const ttcLeads = callerLeads.filter(l => l.time_to_call_minutes != null)
     const avgTimeToCall = ttcLeads.length > 0
@@ -229,7 +229,7 @@ export async function getWeeklyTrends(weeksBack = 12): Promise<WeekTrend[]> {
   const trends: WeekTrend[] = []
   for (const [week, weekLeads] of [...weekMap].sort((a, b) => a[0].localeCompare(b[0]))) {
     const total = weekLeads.length
-    const toSetter = weekLeads.filter(l => l.stage === 'TO SETTER' || l.call_id).length
+    const toSetter = weekLeads.filter(l => l.stage === 'CLOSING CALL BOOKED' || l.stage === 'CLOSED' || l.call_id).length
     const setterRate = total > 0 ? Math.round((toSetter / total) * 100) : 0
 
     const ttcLeads = weekLeads.filter(l => l.time_to_call_minutes != null)

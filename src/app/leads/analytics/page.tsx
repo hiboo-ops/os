@@ -78,11 +78,11 @@ export default function LeadAnalyticsPage() {
             <div className="flex items-center gap-0">
               <FunnelStep icon={Users} label="Leads" value={funnel.leads} rate={null} color="blue" />
               <FunnelArrow rate={funnel.setterRate} />
-              <FunnelStep icon={Phone} label="To Setter" value={funnel.toSetter} rate={`${Math.round(funnel.setterRate)}%`} color="amber" />
-              <FunnelArrow rate={funnel.calls > 0 ? 100 : 0} />
+              <FunnelStep icon={Phone} label="Qualified" value={funnel.toSetter} rate={`${Math.round(funnel.setterRate)}%`} color="amber" />
+              <FunnelArrow rate={funnel.toSetter > 0 ? (funnel.calls / funnel.toSetter) * 100 : 0} />
               <FunnelStep icon={Target} label="Calls" value={funnel.calls} rate={funnel.toSetter > 0 ? `${Math.round((funnel.calls / funnel.toSetter) * 100)}%` : null} color="violet" />
               <FunnelArrow rate={funnel.dealRate} />
-              <FunnelStep icon={DollarSign} label="Deals" value={funnel.deals} rate={`${Math.round(funnel.dealRate)}%`} color="emerald" />
+              <FunnelStep icon={DollarSign} label="Closed" value={funnel.deals} rate={`${Math.round(funnel.dealRate)}%`} color="emerald" />
               <div className="ml-4 pl-4 border-l border-gray-200">
                 <div className="text-lg font-semibold text-gray-900 tabular-nums">{eur(funnel.revenue)}</div>
                 <div className="text-[11px] text-gray-500">{eur(funnel.revenuePerLead)}/lead</div>
