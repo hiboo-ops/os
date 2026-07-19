@@ -31,6 +31,7 @@ export interface Lead {
   lead_id: string | null
   sla_deadline: string | null
   sla_met: boolean | null
+  follow_up_at: string | null
   creator: { id: string; name: string } | null
   triage_caller: { id: string; name: string } | null
   closer: { id: string; name: string } | null

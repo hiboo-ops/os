@@ -12,12 +12,15 @@ import { SkeletonPage } from '@/components/ui/skeleton'
 import { formatDate } from '@/lib/format'
 import {
   Search, Plus, Phone, Mail, X, Check, Clock, PhoneCall,
-  PhoneOff, ArrowRight, ChevronRight, LayoutGrid, List,
-  AlertTriangle, CheckCircle2, PhoneMissed,
+  PhoneOff, ChevronRight, LayoutGrid, List, ClipboardList,
+  AlertTriangle, CheckCircle2, PhoneMissed, Calendar, Link2, Copy,
 } from 'lucide-react'
 
 const iconProps = { strokeWidth: 1.75 } as const
 const SLA_MINUTES = 5
+const KANBAN_MAX_PER_COL = 50
+
+const CALENDLY_BASE = 'https://calendly.com/hiboo' // adjust to actual Calendly link
 
 const STAGE_CONFIG: { key: string; label: string; color: string; borderColor: string }[] = [
   { key: 'LEAD',                label: 'LEAD',                color: 'bg-blue-50 text-blue-700',       borderColor: 'border-l-blue-400' },
@@ -31,32 +34,38 @@ const STAGE_CONFIG: { key: string; label: string; color: string; borderColor: st
   { key: 'LOST - BROKE',        label: 'LOST - BROKE',        color: 'bg-gray-50 text-gray-500',       borderColor: 'border-l-gray-300' },
 ]
 
+const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000
+
 function timeAgo(dateStr: string | null): string {
   if (!dateStr) return '—'
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'zojuist'
+  if (mins < 1) return 'just now'
   if (mins < 60) return `${mins}m`
   const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}u`
+  if (hrs < 24) return `${hrs}h`
   const days = Math.floor(hrs / 24)
   if (days < 7) return `${days}d`
   const weeks = Math.floor(days / 7)
   return `${weeks}w`
 }
 
-const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000
-
 function getSLAMinutes(dateReceived: string | null): number | null {
   if (!dateReceived) return null
-  const diff = Date.now() - new Date(dateReceived).getTime()
-  return Math.floor(diff / 60000)
+  return Math.floor((Date.now() - new Date(dateReceived).getTime()) / 60000)
 }
 
 function isRecentLead(dateReceived: string | null): boolean {
   if (!dateReceived) return false
   return (Date.now() - new Date(dateReceived).getTime()) < ONE_WEEK_MS
 }
+
+function getFirstQuizAnswer(lead: Lead): string | null {
+  if (!lead.quiz_answers || lead.quiz_answers.length === 0) return null
+  return lead.quiz_answers[0].answer
+}
+
+type ViewMode = 'queue' | 'kanban' | 'list'
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([])
@@ -67,9 +76,10 @@ export default function LeadsPage() {
   const [search, setSearch] = useState('')
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
-  const [view, setView] = useState<'kanban' | 'list'>('kanban')
+  const [view, setView] = useState<ViewMode>('queue')
   const [showArchive, setShowArchive] = useState(false)
-  const [callAction, setCallAction] = useState<{ lead: Lead; type: 'answered' | 'not_answered' } | null>(null)
+  const [callAction, setCallAction] = useState<Lead | null>(null)
+  const [stageFilter, setStageFilter] = useState('')
   const refreshRef = useRef<NodeJS.Timeout | null>(null)
 
   const loadData = useCallback(async () => {
@@ -87,12 +97,34 @@ export default function LeadsPage() {
   }, [search])
 
   useEffect(() => { loadData() }, [loadData])
-
-  // Auto-refresh every 30 seconds
   useEffect(() => {
     refreshRef.current = setInterval(loadData, 30000)
     return () => { if (refreshRef.current) clearInterval(refreshRef.current) }
   }, [loadData])
+
+  // Queue: leads sorted by priority (LEAD first sorted by date, then FOLLOW UP by follow_up_at, then ATTEMPTs)
+  const queueLeads = useMemo(() => {
+    let filtered = leads
+    if (stageFilter) filtered = filtered.filter(l => l.stage === stageFilter)
+
+    return [...filtered].sort((a, b) => {
+      // Follow-ups with callback date: sort by follow_up_at
+      if (a.stage === 'FOLLOW UP' && b.stage === 'FOLLOW UP') {
+        if (a.follow_up_at && b.follow_up_at) return new Date(a.follow_up_at).getTime() - new Date(b.follow_up_at).getTime()
+        if (a.follow_up_at) return -1
+        if (b.follow_up_at) return 1
+      }
+      // LEAD and ATTEMPTs first (callable), then others
+      const callableStages = ['LEAD', 'FOLLOW UP', 'ATTEMPT 1', 'ATTEMPT 2', 'ATTEMPT 3', 'ATTEMPT 4']
+      const aCallable = callableStages.includes(a.stage) ? 0 : 1
+      const bCallable = callableStages.includes(b.stage) ? 0 : 1
+      if (aCallable !== bCallable) return aCallable - bCallable
+      // Within callable: oldest first
+      const aDate = a.date_received ? new Date(a.date_received).getTime() : 0
+      const bDate = b.date_received ? new Date(b.date_received).getTime() : 0
+      return aDate - bDate
+    })
+  }, [leads, stageFilter])
 
   const grouped = useMemo(() => {
     const map: Record<string, Lead[]> = {}
@@ -101,11 +133,16 @@ export default function LeadsPage() {
       if (map[lead.stage]) map[lead.stage].push(lead)
       else map['LEAD'].push(lead)
     }
-    // Sort LEAD column by date_received ascending (oldest first = highest priority)
     map['LEAD'].sort((a, b) => {
       const aDate = a.date_received ? new Date(a.date_received).getTime() : 0
       const bDate = b.date_received ? new Date(b.date_received).getTime() : 0
       return aDate - bDate
+    })
+    // Sort FOLLOW UP by follow_up_at
+    map['FOLLOW UP'].sort((a, b) => {
+      if (a.follow_up_at && b.follow_up_at) return new Date(a.follow_up_at).getTime() - new Date(b.follow_up_at).getTime()
+      if (a.follow_up_at) return -1
+      return 1
     })
     return map
   }, [leads])
@@ -115,15 +152,21 @@ export default function LeadsPage() {
     [allLeads]
   )
 
-  // KPIs only count recent leads (< 7 days old)
   const recentStats = useMemo(() => {
     const recent = leads.filter(l => isRecentLead(l.date_received))
     return {
       lead: recent.filter(l => l.stage === 'LEAD').length,
       attempts: recent.filter(l => l.stage.startsWith('ATTEMPT')).length,
-      toSetter: recent.filter(l => l.stage === 'TO SETTER').length,
+      callBooked: recent.filter(l => l.stage === 'CLOSING CALL BOOKED').length,
       total: recent.length,
     }
+  }, [leads])
+
+  // Stage counts for filter
+  const stageCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const l of leads) counts[l.stage] = (counts[l.stage] || 0) + 1
+    return counts
   }, [leads])
 
   if (loading) return <SkeletonPage />
@@ -135,17 +178,21 @@ export default function LeadsPage() {
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Leads</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            <span className="tabular-nums">{stats?.active || 0}</span> active leads &middot;{' '}
-            <span className="tabular-nums">{stats?.total || 0}</span> total
+            <span className="tabular-nums">{leads.length}</span> active &middot;{' '}
+            <span className="tabular-nums">{allLeads.length}</span> total
           </p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
-            <button onClick={() => setView('kanban')}
+            <button onClick={() => setView('queue')} title="Call Queue"
+              className={`p-1.5 rounded-md transition-colors duration-[120ms] ${view === 'queue' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
+              <ClipboardList className="w-4 h-4" {...iconProps} />
+            </button>
+            <button onClick={() => setView('kanban')} title="Kanban"
               className={`p-1.5 rounded-md transition-colors duration-[120ms] ${view === 'kanban' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
               <LayoutGrid className="w-4 h-4" {...iconProps} />
             </button>
-            <button onClick={() => setView('list')}
+            <button onClick={() => setView('list')} title="List"
               className={`p-1.5 rounded-md transition-colors duration-[120ms] ${view === 'list' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
               <List className="w-4 h-4" {...iconProps} />
             </button>
@@ -156,17 +203,17 @@ export default function LeadsPage() {
         </div>
       </div>
 
-      {/* KPIs + SLA (only recent leads < 7 days) */}
+      {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
         <KpiCard label="Uncalled (7d)" value={recentStats.lead} captionColor={recentStats.lead > 0 ? 'danger' : undefined} caption={recentStats.lead > 0 ? 'waiting to be called' : undefined} />
         <KpiCard label="In attempts (7d)" value={recentStats.attempts} />
-        <KpiCard label="Call Booked (7d)" value={recentStats.toSetter} captionColor="success" />
+        <KpiCard label="Call Booked (7d)" value={recentStats.callBooked} captionColor="success" />
         <KpiCard label="SLA today" value={slaStatus ? `${slaStatus.today.slaPercent}%` : '—'} captionColor={slaStatus && slaStatus.today.slaPercent < 80 ? 'danger' : 'success'} caption={`< ${SLA_MINUTES} min target`} />
         <KpiCard label="Avg. TTC" value={stats?.avgTimeToCall != null ? `${stats.avgTimeToCall}m` : '—'} />
         <KpiCard label="Total in board" value={leads.length} />
       </div>
 
-      {/* Search + archive */}
+      {/* Filters */}
       <div className="flex items-center gap-3 mb-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" {...iconProps} />
@@ -174,20 +221,109 @@ export default function LeadsPage() {
             onChange={e => setSearch(e.target.value)}
             className="w-full pl-9 pr-3 h-9 text-sm border border-gray-200 rounded-lg bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-accent-500 transition-shadow duration-[120ms]" />
         </div>
+        {view === 'queue' && (
+          <select value={stageFilter} onChange={e => setStageFilter(e.target.value)}
+            className="h-9 text-sm border border-gray-200 rounded-lg px-3 bg-white text-gray-700">
+            <option value="">All stages ({leads.length})</option>
+            {STAGE_CONFIG.map(s => (
+              <option key={s.key} value={s.key}>{s.label} ({stageCounts[s.key] || 0})</option>
+            ))}
+          </select>
+        )}
         <button onClick={() => setShowArchive(!showArchive)}
           className={`h-9 px-3 text-sm rounded-lg border transition-colors duration-[120ms] ${showArchive ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
           Archive ({archivedLeads.length})
         </button>
       </div>
 
-      {/* Kanban view */}
+      {/* ── CALL QUEUE VIEW ── */}
+      {view === 'queue' && !showArchive && (
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100">
+                  <th className="px-5 py-3 w-8">#</th>
+                  <th className="px-4 py-3">Name</th>
+                  <th className="px-4 py-3">Phone</th>
+                  <th className="px-4 py-3">Quiz / Context</th>
+                  <th className="px-4 py-3">Stage</th>
+                  <th className="px-4 py-3">Attempts</th>
+                  <th className="px-4 py-3">Follow-up</th>
+                  <th className="px-4 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {queueLeads.map((lead, i) => {
+                  const quizPreview = getFirstQuizAnswer(lead)
+                  const isFollowUp = lead.stage === 'FOLLOW UP' && lead.follow_up_at
+                  const followUpPast = isFollowUp && new Date(lead.follow_up_at!).getTime() < Date.now()
+                  return (
+                    <tr key={lead.id} className={`hover:bg-gray-50 transition-colors duration-[120ms] ${followUpPast ? 'bg-amber-50/40' : ''}`}>
+                      <td className="px-5 py-3 text-gray-400 tabular-nums text-xs">{i + 1}</td>
+                      <td className="px-4 py-3">
+                        <button onClick={() => setSelectedLead(lead)} className="text-left">
+                          <div className="font-medium text-gray-900">{lead.name}</div>
+                          {lead.email && <div className="text-[11px] text-gray-400">{lead.email}</div>}
+                        </button>
+                      </td>
+                      <td className="px-4 py-3">
+                        {lead.phone ? (
+                          <a href={`tel:${lead.phone}`} className="text-gray-700 hover:text-blue-600 flex items-center gap-1 font-medium">
+                            <Phone className="w-3 h-3" {...iconProps} /> {lead.phone}
+                          </a>
+                        ) : <span className="text-gray-400">—</span>}
+                      </td>
+                      <td className="px-4 py-3 max-w-[250px]">
+                        {quizPreview ? (
+                          <div className="text-xs text-gray-600 truncate" title={quizPreview}>{quizPreview}</div>
+                        ) : <span className="text-gray-400 text-xs">—</span>}
+                      </td>
+                      <td className="px-4 py-3"><Badge status={lead.stage} /></td>
+                      <td className="px-4 py-3 tabular-nums text-gray-500">{lead.attempt_count || 0}</td>
+                      <td className="px-4 py-3 text-xs text-gray-500">
+                        {lead.follow_up_at ? (
+                          <span className={followUpPast ? 'text-amber-600 font-medium' : ''}>
+                            {formatDate(lead.follow_up_at)}
+                          </span>
+                        ) : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          {lead.phone && (
+                            <a href={`tel:${lead.phone}`}
+                              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors duration-[120ms]">
+                              <PhoneCall className="w-3 h-3" {...iconProps} /> Call
+                            </a>
+                          )}
+                          <button onClick={() => setCallAction(lead)}
+                            className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors duration-[120ms]">
+                            <ClipboardList className="w-3 h-3" {...iconProps} /> Log
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          {queueLeads.length === 0 && (
+            <div className="py-16 text-center text-sm text-gray-400">No leads found</div>
+          )}
+        </div>
+      )}
+
+      {/* ── KANBAN VIEW ── */}
       {view === 'kanban' && !showArchive && (
         <div className="overflow-x-auto -mx-6 px-6 pb-4">
-          <div className="flex gap-3" style={{ minWidth: STAGE_CONFIG.length * 280 }}>
+          <div className="flex gap-3" style={{ minWidth: STAGE_CONFIG.length * 260 }}>
             {STAGE_CONFIG.map(stage => {
               const stageLeads = grouped[stage.key] || []
+              const shown = stageLeads.slice(0, KANBAN_MAX_PER_COL)
+              const remaining = stageLeads.length - shown.length
               return (
-                <div key={stage.key} className="w-[280px] flex-shrink-0">
+                <div key={stage.key} className="w-[260px] flex-shrink-0">
                   <div className="mb-3 flex items-center justify-between">
                     <span className={`inline-flex items-center text-xs font-medium rounded-md px-2 py-1 ${stage.color}`}>
                       {stage.label}
@@ -195,11 +331,52 @@ export default function LeadsPage() {
                     <span className="text-xs text-gray-400 tabular-nums">{stageLeads.length}</span>
                   </div>
                   <div className="space-y-2 min-h-[200px]">
-                    {stageLeads.map(lead => (
-                      <LeadCard key={lead.id} lead={lead} stage={stage}
-                        onClick={() => setSelectedLead(lead)}
-                        onCallAction={(type) => setCallAction({ lead, type })} />
-                    ))}
+                    {shown.map(lead => {
+                      const quizPreview = getFirstQuizAnswer(lead)
+                      const recent = isRecentLead(lead.date_received)
+                      const slaMins = getSLAMinutes(lead.date_received)
+                      const slaExpired = recent && lead.stage === 'LEAD' && !lead.first_called_at && slaMins != null && slaMins > SLA_MINUTES
+                      return (
+                        <div key={lead.id} onClick={() => setSelectedLead(lead)}
+                          className={`bg-white rounded-lg border ${slaExpired ? 'border-red-200 bg-red-50/30' : 'border-gray-200'} ${stage.borderColor} border-l-[3px] p-3 cursor-pointer hover:border-gray-300 transition-colors duration-[120ms]`}>
+                          {recent && lead.stage === 'LEAD' && !lead.first_called_at && slaMins != null && (
+                            <div className={`flex items-center gap-1 text-[10px] font-medium mb-1 ${slaExpired ? 'text-red-600' : 'text-emerald-600'}`}>
+                              {slaExpired ? <AlertTriangle className="w-3 h-3" {...iconProps} /> : <Clock className="w-3 h-3" {...iconProps} />}
+                              <span className="tabular-nums">{slaMins}m</span>
+                              {slaExpired && <span>— SLA exceeded</span>}
+                            </div>
+                          )}
+                          <div className="font-medium text-sm text-gray-900 truncate">{lead.name}</div>
+                          {quizPreview && (
+                            <div className="text-[11px] text-gray-400 truncate mt-0.5" title={quizPreview}>{quizPreview}</div>
+                          )}
+                          <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-gray-400">
+                            <Clock className="w-3 h-3" {...iconProps} />
+                            <span>{timeAgo(lead.date_received)} ago</span>
+                            {lead.attempt_count > 0 && <span className="ml-auto tabular-nums">{lead.attempt_count}x called</span>}
+                          </div>
+                          {lead.phone && (
+                            <div className="flex items-center gap-1.5 mt-2">
+                              <span className="text-xs text-gray-500 truncate flex-1">{lead.phone}</span>
+                              <button onClick={e => { e.stopPropagation(); setCallAction(lead) }}
+                                className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors duration-[120ms]">
+                                <ClipboardList className="w-3 h-3" {...iconProps} /> Log
+                              </button>
+                            </div>
+                          )}
+                          {lead.follow_up_at && (
+                            <div className="flex items-center gap-1 mt-1.5 text-[10px] text-sky-600">
+                              <Calendar className="w-3 h-3" {...iconProps} /> {formatDate(lead.follow_up_at)}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                    {remaining > 0 && (
+                      <div className="text-center py-2 text-[11px] text-gray-400">
+                        +{remaining} more
+                      </div>
+                    )}
                     {stageLeads.length === 0 && (
                       <div className="rounded-lg border border-dashed border-gray-200 p-4 text-center">
                         <span className="text-xs text-gray-400">No leads</span>
@@ -213,7 +390,7 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {/* List view */}
+      {/* ── LIST VIEW ── */}
       {(view === 'list' || showArchive) && (
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
@@ -225,74 +402,53 @@ export default function LeadsPage() {
                   <th className="px-4 py-3">Source</th>
                   <th className="px-4 py-3">Stage</th>
                   <th className="px-4 py-3">Attempts</th>
-                  <th className="px-4 py-3">SLA</th>
                   <th className="px-4 py-3">Received</th>
                   <th className="px-4 py-3 w-10"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {(showArchive ? archivedLeads : leads).map(lead => {
-                  const slaMins = getSLAMinutes(lead.date_received)
-                  const slaOk = lead.sla_met === true || (lead.first_called_at && slaMins != null && slaMins <= SLA_MINUTES)
-                  return (
-                    <tr key={lead.id} onClick={() => setSelectedLead(lead)}
-                      className="hover:bg-gray-50 cursor-pointer transition-colors duration-[120ms]">
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-3">
-                          <Avatar name={lead.name} size="sm" />
-                          <div>
-                            <div className="font-medium text-gray-900">{lead.name}</div>
-                            {lead.email && <div className="text-[11px] text-gray-400">{lead.email}</div>}
-                          </div>
+                {(showArchive ? archivedLeads : leads).map(lead => (
+                  <tr key={lead.id} onClick={() => setSelectedLead(lead)}
+                    className="hover:bg-gray-50 cursor-pointer transition-colors duration-[120ms]">
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar name={lead.name} size="sm" />
+                        <div>
+                          <div className="font-medium text-gray-900">{lead.name}</div>
+                          {lead.email && <div className="text-[11px] text-gray-400">{lead.email}</div>}
                         </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        {lead.phone ? (
-                          <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()}
-                            className="text-gray-700 hover:text-blue-600 flex items-center gap-1">
-                            <Phone className="w-3 h-3" {...iconProps} /> {lead.phone}
-                          </a>
-                        ) : <span className="text-gray-400">—</span>}
-                      </td>
-                      <td className="px-4 py-3"><Badge status={lead.source || 'OTHER'} /></td>
-                      <td className="px-4 py-3"><Badge status={lead.stage} /></td>
-                      <td className="px-4 py-3 tabular-nums text-gray-500">{lead.attempt_count || 0}</td>
-                      <td className="px-4 py-3">
-                        {lead.stage === 'LEAD' && !lead.first_called_at ? (
-                          <span className={`text-xs font-medium ${slaMins != null && slaMins > SLA_MINUTES ? 'text-red-600' : 'text-emerald-600'}`}>
-                            {slaMins != null ? `${slaMins}m` : '—'}
-                          </span>
-                        ) : slaOk ? (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" {...iconProps} />
-                        ) : lead.first_called_at ? (
-                          <AlertTriangle className="w-3.5 h-3.5 text-amber-500" {...iconProps} />
-                        ) : null}
-                      </td>
-                      <td className="px-4 py-3 text-gray-500">{formatDate(lead.date_received)}</td>
-                      <td className="px-4 py-3"><ChevronRight className="w-4 h-4 text-gray-300" /></td>
-                    </tr>
-                  )
-                })}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {lead.phone ? (
+                        <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()}
+                          className="text-gray-700 hover:text-blue-600 flex items-center gap-1">
+                          <Phone className="w-3 h-3" {...iconProps} /> {lead.phone}
+                        </a>
+                      ) : <span className="text-gray-400">—</span>}
+                    </td>
+                    <td className="px-4 py-3"><Badge status={lead.source || 'OTHER'} /></td>
+                    <td className="px-4 py-3"><Badge status={lead.stage} /></td>
+                    <td className="px-4 py-3 tabular-nums text-gray-500">{lead.attempt_count || 0}</td>
+                    <td className="px-4 py-3 text-gray-500">{formatDate(lead.date_received)}</td>
+                    <td className="px-4 py-3"><ChevronRight className="w-4 h-4 text-gray-300" /></td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
           {(showArchive ? archivedLeads : leads).length === 0 && (
-            <div className="py-16 text-center text-sm text-gray-400">No leads gevonden</div>
+            <div className="py-16 text-center text-sm text-gray-400">No leads found</div>
           )}
         </div>
       )}
 
-      {/* Call action modal (answered / not answered) */}
+      {/* Call Action Modal */}
       {callAction && (
-        <CallActionModal
-          lead={callAction.lead}
-          type={callAction.type}
-          onClose={() => setCallAction(null)}
-          onDone={() => { setCallAction(null); loadData() }}
-        />
+        <CallActionModal lead={callAction} onClose={() => setCallAction(null)} onDone={() => { setCallAction(null); loadData() }} />
       )}
 
-      {/* Lead Detail Slide-out */}
+      {/* Lead Detail */}
       {selectedLead && (
         <LeadDetail lead={selectedLead} onClose={() => setSelectedLead(null)} onUpdate={loadData} />
       )}
@@ -305,82 +461,12 @@ export default function LeadsPage() {
   )
 }
 
-/* ── Lead Card (Kanban) ── */
-function LeadCard({ lead, stage, onClick, onCallAction }: {
-  lead: Lead; stage: { borderColor: string }; onClick: () => void
-  onCallAction: (type: 'answered' | 'not_answered') => void
-}) {
-  const slaMins = getSLAMinutes(lead.date_received)
-  const recent = isRecentLead(lead.date_received)
-  const slaExpired = recent && lead.stage === 'LEAD' && !lead.first_called_at && slaMins != null && slaMins > SLA_MINUTES
-
-  const handleCall = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!lead.phone) return
-    window.open(`tel:${lead.phone}`, '_self')
-    // Show action choice after initiating call
-    setTimeout(() => onCallAction('not_answered'), 500)
-  }
-
-  return (
-    <div onClick={onClick}
-      className={`bg-white rounded-lg border ${slaExpired ? 'border-red-200 bg-red-50/30' : 'border-gray-200'} ${stage.borderColor} border-l-[3px] p-3.5 cursor-pointer hover:border-gray-300 transition-colors duration-[120ms]`}>
-      {/* SLA indicator for uncalled leads (only show for recent leads < 7 days) */}
-      {recent && lead.stage === 'LEAD' && !lead.first_called_at && slaMins != null && (
-        <div className={`flex items-center gap-1 text-[10px] font-medium mb-1.5 ${slaExpired ? 'text-red-600' : 'text-emerald-600'}`}>
-          {slaExpired ? <AlertTriangle className="w-3 h-3" {...iconProps} /> : <Clock className="w-3 h-3" {...iconProps} />}
-          <span className="tabular-nums">{slaMins}m</span>
-          {slaExpired && <span>— SLA exceeded</span>}
-        </div>
-      )}
-
-      {/* Name */}
-      <div className="font-medium text-sm text-gray-900 truncate">{lead.name}</div>
-
-      {/* Time + attempts */}
-      <div className="flex items-center gap-1.5 mt-1 text-[11px] text-gray-400">
-        <Clock className="w-3 h-3" {...iconProps} />
-        <span>{timeAgo(lead.date_received)}</span>
-        {lead.attempt_count > 0 && (
-          <span className="ml-auto tabular-nums">{lead.attempt_count}x called</span>
-        )}
-      </div>
-
-      {/* Phone + call buttons */}
-      <div className="flex items-center gap-1.5 mt-2.5">
-        {lead.phone ? (
-          <>
-            <span className="text-xs text-gray-500 truncate flex-1">{lead.phone}</span>
-            <button onClick={handleCall}
-              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors duration-[120ms]">
-              <PhoneCall className="w-3 h-3" {...iconProps} />
-              Bel
-            </button>
-          </>
-        ) : (
-          <span className="text-xs text-gray-400">No phone</span>
-        )}
-      </div>
-
-      {/* Source */}
-      {lead.source && (
-        <div className="mt-2">
-          <span className="inline-flex text-[10px] font-medium bg-gray-100 text-gray-500 rounded px-1.5 py-0.5">
-            {lead.source}
-          </span>
-        </div>
-      )}
-    </div>
-  )
-}
-
-/* ── Call Action Modal (opgenomen / niet opgenomen) ── */
-function CallActionModal({ lead, type: initialType, onClose, onDone }: {
-  lead: Lead; type: 'answered' | 'not_answered'; onClose: () => void; onDone: () => void
-}) {
-  const [view, setView] = useState<'choose' | 'answered'>(initialType === 'answered' ? 'answered' : 'choose')
+/* ── Call Action Modal ── */
+function CallActionModal({ lead, onClose, onDone }: { lead: Lead; onClose: () => void; onDone: () => void }) {
+  const [view, setView] = useState<'choose' | 'answered'>('choose')
   const [notes, setNotes] = useState('')
   const [nextStage, setNextStage] = useState<string>('FOLLOW UP')
+  const [followUpAt, setFollowUpAt] = useState('')
   const [saving, setSaving] = useState(false)
 
   const handleNotAnswered = async () => {
@@ -388,14 +474,9 @@ function CallActionModal({ lead, type: initialType, onClose, onDone }: {
     const now = new Date().toISOString()
     const newAttempt = (lead.attempt_count || 0) + 1
     const newStage = newAttempt <= 4 ? `ATTEMPT ${newAttempt}` : lead.stage
-
     const updates: Record<string, unknown> = {
-      id: lead.id,
-      attempt_count: newAttempt,
-      last_attempt_at: now,
-      last_contact: now.split('T')[0],
-      contact_count: (lead.contact_count || 0) + 1,
-      stage: newStage,
+      id: lead.id, attempt_count: newAttempt, last_attempt_at: now,
+      last_contact: now.split('T')[0], contact_count: (lead.contact_count || 0) + 1, stage: newStage,
     }
     if (!lead.first_called_at) {
       updates.first_called_at = now
@@ -411,17 +492,16 @@ function CallActionModal({ lead, type: initialType, onClose, onDone }: {
   }
 
   const handleAnswered = async () => {
-    if (!nextStage) { alert('Choose a result'); return }
+    if (!nextStage) return
     setSaving(true)
     const now = new Date().toISOString()
     const updates: Record<string, unknown> = {
-      id: lead.id,
-      attempt_count: (lead.attempt_count || 0) + 1,
-      last_attempt_at: now,
-      last_contact: now.split('T')[0],
-      contact_count: (lead.contact_count || 0) + 1,
-      stage: nextStage,
-      triage_notes: notes || lead.triage_notes || null,
+      id: lead.id, attempt_count: (lead.attempt_count || 0) + 1, last_attempt_at: now,
+      last_contact: now.split('T')[0], contact_count: (lead.contact_count || 0) + 1,
+      stage: nextStage, triage_notes: notes || lead.triage_notes || null,
+    }
+    if (nextStage === 'FOLLOW UP' && followUpAt) {
+      updates.follow_up_at = new Date(followUpAt).toISOString()
     }
     if (!lead.first_called_at) {
       updates.first_called_at = now
@@ -436,31 +516,35 @@ function CallActionModal({ lead, type: initialType, onClose, onDone }: {
     onDone()
   }
 
+  const copyCalendly = () => {
+    const url = `${CALENDLY_BASE}?name=${encodeURIComponent(lead.name)}&email=${encodeURIComponent(lead.email || '')}`
+    navigator.clipboard.writeText(url)
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
       <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
       <div className="relative bg-white rounded-lg border border-gray-200 w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold text-gray-900">{lead.name}</h2>
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">{lead.name}</h2>
+            {lead.phone && <div className="text-sm text-gray-500">{lead.phone}</div>}
+          </div>
           <button onClick={onClose} className="p-1 rounded-md text-gray-400 hover:bg-gray-100"><X className="w-5 h-5" /></button>
         </div>
 
-        {/* Step 1: Choose result */}
         {view === 'choose' && (
           <div className="space-y-3">
             <p className="text-sm text-gray-600">What was the result?</p>
             <Button variant="secondary" size="md" onClick={handleNotAnswered} disabled={saving} className="w-full justify-center">
-              <PhoneMissed className="w-4 h-4 text-amber-600" {...iconProps} />
-              Not answered
+              <PhoneMissed className="w-4 h-4 text-amber-600" {...iconProps} /> Not answered
             </Button>
             <Button variant="primary" size="md" onClick={() => setView('answered')} className="w-full justify-center">
-              <CheckCircle2 className="w-4 h-4" {...iconProps} />
-              Answered
+              <CheckCircle2 className="w-4 h-4" {...iconProps} /> Answered
             </Button>
           </div>
         )}
 
-        {/* Step 2: Answered → notes + result */}
         {view === 'answered' && (
           <div className="space-y-4">
             <div>
@@ -473,8 +557,33 @@ function CallActionModal({ lead, type: initialType, onClose, onDone }: {
                 <option value="LOST - BROKE">LOST - BROKE</option>
               </select>
             </div>
+            {nextStage === 'FOLLOW UP' && (
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Call back at</label>
+                <input type="datetime-local" value={followUpAt} onChange={e => setFollowUpAt(e.target.value)}
+                  className="mt-1.5 w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700" />
+              </div>
+            )}
+            {nextStage === 'CLOSING CALL BOOKED' && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-sm text-emerald-700 font-medium mb-2">
+                  <Calendar className="w-4 h-4" {...iconProps} /> Book via Calendly
+                </div>
+                <div className="flex gap-2">
+                  <a href={`${CALENDLY_BASE}?name=${encodeURIComponent(lead.name)}&email=${encodeURIComponent(lead.email || '')}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-md text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors">
+                    <Link2 className="w-3 h-3" {...iconProps} /> Open Calendly
+                  </a>
+                  <button onClick={copyCalendly}
+                    className="flex items-center gap-1 px-3 py-2 rounded-md text-xs font-medium bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors">
+                    <Copy className="w-3 h-3" {...iconProps} /> Copy
+                  </button>
+                </div>
+              </div>
+            )}
             <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Notities</label>
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Notes</label>
               <textarea value={notes} onChange={e => setNotes(e.target.value)}
                 rows={3} placeholder="Brief summary of the conversation..."
                 className="mt-1.5 w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-accent-700" />
@@ -495,6 +604,7 @@ function LeadDetail({ lead, onClose, onUpdate }: { lead: Lead; onClose: () => vo
     stage: lead.stage || 'LEAD',
     triage_notes: lead.triage_notes || '',
     notes: lead.notes || '',
+    follow_up_at: lead.follow_up_at ? lead.follow_up_at.slice(0, 16) : '',
   })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -505,10 +615,10 @@ function LeadDetail({ lead, onClose, onUpdate }: { lead: Lead; onClose: () => vo
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        id: lead.id,
-        stage: form.stage,
+        id: lead.id, stage: form.stage,
         triage_notes: form.triage_notes || null,
         notes: form.notes || null,
+        follow_up_at: form.follow_up_at ? new Date(form.follow_up_at).toISOString() : null,
       }),
     })
     setSaving(false)
@@ -522,62 +632,36 @@ function LeadDetail({ lead, onClose, onUpdate }: { lead: Lead; onClose: () => vo
   return (
     <SlideOver open onClose={onClose} title={lead.name}>
       <div className="flex-1 overflow-y-auto">
-        {/* Header badges */}
+        {/* Badges */}
         <div className="px-6 pt-2 pb-4 flex items-center gap-2 flex-wrap">
           <Badge status={lead.stage} />
           <Badge status={lead.source || 'OTHER'} />
-          {lead.attempt_count > 0 && (
-            <span className="text-[11px] text-gray-400 tabular-nums">{lead.attempt_count}x called</span>
-          )}
-          {lead.sla_met === true && (
-            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
-              <CheckCircle2 className="w-3 h-3" /> SLA met
-            </span>
-          )}
-          {lead.sla_met === false && (
-            <span className="inline-flex items-center gap-1 text-[11px] text-red-600 font-medium">
-              <AlertTriangle className="w-3 h-3" /> SLA missed
-            </span>
-          )}
+          {lead.attempt_count > 0 && <span className="text-[11px] text-gray-400 tabular-nums">{lead.attempt_count}x called</span>}
+          {lead.sla_met === true && <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-medium"><CheckCircle2 className="w-3 h-3" /> SLA met</span>}
+          {lead.sla_met === false && <span className="inline-flex items-center gap-1 text-[11px] text-red-600 font-medium"><AlertTriangle className="w-3 h-3" /> SLA missed</span>}
         </div>
 
         {/* Call action */}
         <div className="px-6 py-4 bg-blue-50 border-y border-blue-100">
-          <div className="flex items-center gap-3">
-            {lead.phone ? (
-              <>
-                <a href={`tel:${lead.phone}`} className="flex-1 flex items-center gap-2 text-blue-700 font-medium text-sm hover:text-blue-800">
-                  <PhoneCall className="w-4 h-4" {...iconProps} />
-                  {lead.phone}
-                </a>
-              </>
-            ) : (
-              <div className="flex items-center gap-2 text-gray-500 text-sm">
-                <PhoneOff className="w-4 h-4" {...iconProps} /> No phonenummer
-              </div>
-            )}
-          </div>
-          {lead.time_to_call_minutes != null && (
-            <div className="mt-2 text-[11px] text-blue-600">
-              Time-to-call: <span className="tabular-nums font-medium">{lead.time_to_call_minutes}m</span>
+          {lead.phone ? (
+            <a href={`tel:${lead.phone}`} className="flex items-center gap-2 text-blue-700 font-medium text-sm hover:text-blue-800">
+              <PhoneCall className="w-4 h-4" {...iconProps} /> {lead.phone}
+            </a>
+          ) : (
+            <div className="flex items-center gap-2 text-gray-500 text-sm">
+              <PhoneOff className="w-4 h-4" {...iconProps} /> No phone number
             </div>
           )}
-          {lead.stage === 'LEAD' && !lead.first_called_at && slaMins != null && (
-            <div className={`mt-2 text-[11px] font-medium ${slaMins > SLA_MINUTES ? 'text-red-600' : 'text-emerald-600'}`}>
-              Waiting for <span className="tabular-nums">{slaMins}m</span> — SLA target: {SLA_MINUTES}m
-            </div>
+          {lead.time_to_call_minutes != null && (
+            <div className="mt-2 text-[11px] text-blue-600">Time-to-call: <span className="tabular-nums font-medium">{lead.time_to_call_minutes}m</span></div>
           )}
         </div>
 
-        {/* Contact info */}
+        {/* Contact */}
         <div className="px-6 py-5 border-b border-gray-100">
           <h3 className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-3">Contact</h3>
           <div className="space-y-2 text-sm">
-            {lead.email && (
-              <div className="flex items-center gap-2 text-gray-700">
-                <Mail className="w-3.5 h-3.5 text-gray-400" {...iconProps} /> {lead.email}
-              </div>
-            )}
+            {lead.email && <div className="flex items-center gap-2 text-gray-700"><Mail className="w-3.5 h-3.5 text-gray-400" {...iconProps} /> {lead.email}</div>}
             {lead.ad_campaign && <div className="text-gray-500">Campaign: {lead.ad_campaign}</div>}
             {lead.creator_name && <div className="text-gray-500">Creator: {lead.creator_name}</div>}
             <div className="text-gray-500">Received: {formatDate(lead.date_received)}</div>
@@ -601,7 +685,7 @@ function LeadDetail({ lead, onClose, onUpdate }: { lead: Lead; onClose: () => vo
           </div>
         )}
 
-        {/* Stage & notes */}
+        {/* Triage */}
         <div className="px-6 py-5 border-b border-gray-100">
           <h3 className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-3">Triage</h3>
           <div className="space-y-4">
@@ -612,6 +696,13 @@ function LeadDetail({ lead, onClose, onUpdate }: { lead: Lead; onClose: () => vo
                 {LEAD_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
+            {form.stage === 'FOLLOW UP' && (
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Call back at</label>
+                <input type="datetime-local" value={form.follow_up_at} onChange={e => setForm({ ...form, follow_up_at: e.target.value })}
+                  className="mt-1.5 w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700" />
+              </div>
+            )}
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Triage notes</label>
               <textarea value={form.triage_notes} onChange={e => setForm({ ...form, triage_notes: e.target.value })}
@@ -619,19 +710,33 @@ function LeadDetail({ lead, onClose, onUpdate }: { lead: Lead; onClose: () => vo
                 className="mt-1.5 w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-accent-700" />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Notities</label>
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Notes</label>
               <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
                 rows={2} placeholder="General notes..."
                 className="mt-1.5 w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-accent-700" />
             </div>
           </div>
         </div>
+
+        {/* Calendly for CLOSING CALL BOOKED */}
+        {lead.stage === 'CLOSING CALL BOOKED' && (
+          <div className="px-6 py-5 border-b border-gray-100">
+            <h3 className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-3">Closing Call</h3>
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+              <a href={`${CALENDLY_BASE}?name=${encodeURIComponent(lead.name)}&email=${encodeURIComponent(lead.email || '')}`}
+                target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm text-emerald-700 font-medium hover:text-emerald-800">
+                <Calendar className="w-4 h-4" {...iconProps} /> Open Calendly booking page
+              </a>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Footer */}
       <div className="shrink-0 border-t border-gray-100 px-6 py-4 flex gap-3">
         <Button variant="primary" size="md" onClick={save} disabled={saving} className="flex-1">
-          {saving ? 'Saving...' : saved ? <><Check className="w-4 h-4" {...iconProps} /> Opgeslagen</> : 'Save'}
+          {saving ? 'Saving...' : saved ? <><Check className="w-4 h-4" {...iconProps} /> Saved</> : 'Save'}
         </Button>
       </div>
     </SlideOver>
@@ -644,21 +749,16 @@ function AddLeadModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
   const [creating, setCreating] = useState(false)
 
   const handleCreate = async () => {
-    if (!form.name) { alert('Name is verplicht'); return }
+    if (!form.name) { alert('Name is required'); return }
     setCreating(true)
     const now = new Date().toISOString()
-    const slaDeadline = new Date(Date.now() + SLA_MINUTES * 60000).toISOString()
     await fetch('/api/leads', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: form.name,
-        email: form.email || null,
-        phone: form.phone || null,
-        source: form.source,
-        stage: 'LEAD',
-        date_received: now,
-        sla_deadline: slaDeadline,
+        name: form.name, email: form.email || null, phone: form.phone || null,
+        source: form.source, stage: 'LEAD', date_received: now,
+        sla_deadline: new Date(Date.now() + SLA_MINUTES * 60000).toISOString(),
       }),
     })
     setCreating(false)
