@@ -97,11 +97,28 @@ async function handleInviteeCreated(p: Record<string, any>) {
       setterId = lead.triage_caller_id
       if (!creatorName) creatorName = lead.creator_name
 
-      // Update lead stage
+      // Update lead with booking data + quiz answers
       await supabase.from('leads').update({
         stage: 'CLOSING CALL BOOKED',
         scheduled_call_date: startTime,
+        phone: phone || undefined,
+        quiz_answers: questions.length > 0 ? questions : undefined,
       }).eq('id', lead.id)
+    } else if (email) {
+      // No existing lead — create one from the Calendly booking
+      const { data: newLead } = await supabase.from('leads').insert({
+        name,
+        email,
+        phone,
+        source: utmSource || 'CALENDLY',
+        stage: 'CLOSING CALL BOOKED',
+        date_received: new Date().toISOString(),
+        scheduled_call_date: startTime,
+        creator_name: creatorName,
+        ad_campaign: utmContent,
+        quiz_answers: questions.length > 0 ? questions : null,
+      }).select('id').single()
+      if (newLead) leadId = newLead.id
     }
   }
 
