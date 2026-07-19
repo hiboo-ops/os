@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { SkeletonPage } from '@/components/ui/skeleton'
-import { Plus, Trash2, Calendar, X, Link2, CheckCircle2, AlertTriangle, Settings } from 'lucide-react'
+import { Plus, Trash2, Calendar, X, Link2, CheckCircle2, AlertTriangle, Settings, RefreshCw, FileText } from 'lucide-react'
+import { formatDate } from '@/lib/format'
 
 const iconProps = { strokeWidth: 1.75 } as const
 
@@ -165,6 +166,9 @@ export default function AdminPage() {
         )}
       </section>
 
+      {/* ── Webhook Logs ── */}
+      <WebhookLogs />
+
       {/* ── System Info ── */}
       <section>
         <h2 className="text-sm font-medium text-gray-900 mb-4 flex items-center gap-2">
@@ -184,6 +188,79 @@ export default function AdminPage() {
         <AddEventModal closers={closers} onClose={() => setShowAdd(false)} onCreated={loadData} />
       )}
     </div>
+  )
+}
+
+/* ── Webhook Logs ── */
+function WebhookLogs() {
+  const [logs, setLogs] = useState<{ id: string; source: string; event: string; payload: Record<string, unknown>; created_at: string }[]>([])
+  const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState<string | null>(null)
+
+  const loadLogs = async () => {
+    setLoading(true)
+    const { data } = await supabase
+      .from('webhook_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(20)
+    setLogs((data || []) as typeof logs)
+    setLoading(false)
+  }
+
+  useEffect(() => { loadLogs() }, [])
+
+  return (
+    <section className="mb-10">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-sm font-medium text-gray-900 flex items-center gap-2">
+          <FileText className="w-4 h-4 text-gray-500" {...iconProps} /> Webhook Logs
+        </h2>
+        <button onClick={loadLogs} className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} {...iconProps} />
+        </button>
+      </div>
+
+      {logs.length === 0 ? (
+        <div className="bg-white rounded-lg border border-dashed border-gray-200 p-6 text-center">
+          <p className="text-sm text-gray-500">No webhook logs yet</p>
+          <p className="text-xs text-gray-400 mt-1">Logs will appear when Calendly sends events</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100">
+                <th className="px-5 py-3">Time</th>
+                <th className="px-4 py-3">Source</th>
+                <th className="px-4 py-3">Event</th>
+                <th className="px-4 py-3">Payload</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {logs.map(log => (
+                <tr key={log.id} className="hover:bg-gray-50">
+                  <td className="px-5 py-3 text-gray-500 text-xs tabular-nums whitespace-nowrap">{formatDate(log.created_at)}</td>
+                  <td className="px-4 py-3 text-gray-700 font-medium">{log.source}</td>
+                  <td className="px-4 py-3"><span className="text-xs font-medium bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">{log.event}</span></td>
+                  <td className="px-4 py-3">
+                    <button onClick={() => setExpanded(expanded === log.id ? null : log.id)}
+                      className="text-xs text-blue-600 hover:text-blue-700 font-medium">
+                      {expanded === log.id ? 'Hide' : 'Show'}
+                    </button>
+                    {expanded === log.id && (
+                      <pre className="mt-2 text-[11px] text-gray-600 bg-gray-50 rounded-lg p-3 overflow-x-auto max-h-[300px] overflow-y-auto">
+                        {JSON.stringify(log.payload, null, 2)}
+                      </pre>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   )
 }
 
