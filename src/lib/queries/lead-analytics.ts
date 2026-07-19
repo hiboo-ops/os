@@ -27,7 +27,7 @@ interface SourceRow {
 type LeadRow = Record<string, unknown>
 
 async function fetchAllLeads(select: string, filters?: { dateFrom?: string; dateTo?: string; source?: string }): Promise<LeadRow[]> {
-  const PAGE_SIZE = 1000
+  const PAGE_SIZE = 500
   let all: LeadRow[] = []
   let from = 0
   let hasMore = true

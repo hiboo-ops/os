@@ -44,7 +44,7 @@ export const LEAD_STAGES = ['LEAD', 'FOLLOW UP', 'ATTEMPT 1', 'ATTEMPT 2', 'ATTE
 export type LeadStage = typeof LEAD_STAGES[number]
 
 export async function getAllLeads(filters?: { source?: string; stage?: string; search?: string; activeOnly?: boolean }) {
-  const PAGE_SIZE = 1000
+  const PAGE_SIZE = 500
 
   // Build a base query to get count
   let countQuery = supabase.from('leads').select('id', { count: 'exact', head: true })
