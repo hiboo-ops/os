@@ -22,19 +22,39 @@ interface SourceRow {
   endToEndRate: number
 }
 
+// ─── Helper: fetch all rows with parallel pagination ────────────────────────
+
+type LeadRow = Record<string, unknown>
+
+async function fetchAllLeads(select: string, filters?: { dateFrom?: string; dateTo?: string; source?: string }): Promise<LeadRow[]> {
+  const PAGE_SIZE = 1000
+
+  let countQuery = supabase.from('leads').select('id', { count: 'exact', head: true })
+  if (filters?.dateFrom) countQuery = countQuery.gte('date_received', filters.dateFrom)
+  if (filters?.dateTo) countQuery = countQuery.lte('date_received', filters.dateTo)
+  if (filters?.source) countQuery = countQuery.eq('source', filters.source)
+
+  const { count } = await countQuery
+  const total = count || 0
+  if (total === 0) return []
+
+  const batches = Math.ceil(total / PAGE_SIZE)
+  const promises = Array.from({ length: batches }, (_, i) => {
+    let q = supabase.from('leads').select(select).range(i * PAGE_SIZE, (i + 1) * PAGE_SIZE - 1)
+    if (filters?.dateFrom) q = q.gte('date_received', filters.dateFrom)
+    if (filters?.dateTo) q = q.lte('date_received', filters.dateTo)
+    if (filters?.source) q = q.eq('source', filters.source)
+    return q
+  })
+
+  const results = await Promise.all(promises)
+  return results.flatMap(r => (r.data || []) as LeadRow[])
+}
+
 // ─── Funnel Metrics ─────────────────────────────────────────────────────────
 
 export async function getFunnelMetrics(dateFrom?: string, dateTo?: string, source?: string): Promise<FunnelMetrics> {
-  let query = supabase.from('leads')
-    .select('id, stage, call_id, first_called_at, is_legacy')
-    .limit(10000)
-
-  if (dateFrom) query = query.gte('date_received', dateFrom)
-  if (dateTo) query = query.lte('date_received', dateTo)
-  if (source) query = query.eq('source', source)
-
-  const { data } = await query
-  const leads = data || []
+  const leads = await fetchAllLeads('id, stage, call_id, first_called_at', { dateFrom, dateTo, source })
 
   const leadsIn = leads.length
   const contacted = leads.filter(l => l.first_called_at != null).length
@@ -43,7 +63,6 @@ export async function getFunnelMetrics(dateFrom?: string, dateTo?: string, sourc
   )
   const callBooked = callBookedLeads.length
 
-  // Get closed deals from linked calls
   const callIds = leads.map(l => l.call_id).filter(Boolean) as string[]
   let closed = 0
   let revenue = 0
@@ -75,25 +94,15 @@ export async function getFunnelMetrics(dateFrom?: string, dateTo?: string, sourc
 // ─── Source Performance ─────────────────────────────────────────────────────
 
 export async function getSourcePerformance(dateFrom?: string, dateTo?: string): Promise<SourceRow[]> {
-  let query = supabase.from('leads')
-    .select('id, source, stage, call_id, first_called_at, is_legacy')
-    .limit(10000)
+  const leads = await fetchAllLeads('id, source, stage, call_id, first_called_at', { dateFrom, dateTo })
 
-  if (dateFrom) query = query.gte('date_received', dateFrom)
-  if (dateTo) query = query.lte('date_received', dateTo)
-
-  const { data } = await query
-  const leads = data || []
-
-  // Group by source
   const sourceMap = new Map<string, typeof leads>()
   for (const lead of leads) {
-    const key = lead.source || 'UNKNOWN'
+    const key = (lead.source as string) || 'UNKNOWN'
     if (!sourceMap.has(key)) sourceMap.set(key, [])
     sourceMap.get(key)!.push(lead)
   }
 
-  // Get call results for deal lookup
   const allCallIds = leads.map(l => l.call_id).filter(Boolean) as string[]
   const callResults = new Map<string, { result: string; deal_value: number | null }>()
 
@@ -119,8 +128,8 @@ export async function getSourcePerformance(dateFrom?: string, dateTo?: string): 
     let closed = 0
     let revenue = 0
     for (const lead of sourceLeads) {
-      if (lead.call_id && callResults.has(lead.call_id)) {
-        const call = callResults.get(lead.call_id)!
+      if (lead.call_id && callResults.has(lead.call_id as string)) {
+        const call = callResults.get(lead.call_id as string)!
         if (call.result === 'CLOSED') {
           closed++
           revenue += call.deal_value || 0
