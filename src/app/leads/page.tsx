@@ -100,6 +100,8 @@ export default function LeadsPage() {
   const [showArchive, setShowArchive] = useState(false)
   const [callAction, setCallAction] = useState<Lead | null>(null)
   const [stageFilter, setStageFilter] = useState('')
+  const [dragLeadId, setDragLeadId] = useState<string | null>(null)
+  const [dragOverStage, setDragOverStage] = useState<string | null>(null)
   const refreshRef = useRef<NodeJS.Timeout | null>(null)
 
   const loadData = useCallback(async () => {
@@ -188,6 +190,17 @@ export default function LeadsPage() {
     for (const l of leads) counts[l.stage] = (counts[l.stage] || 0) + 1
     return counts
   }, [leads])
+
+  const handleDrop = async (leadId: string, newStage: string) => {
+    setDragLeadId(null)
+    setDragOverStage(null)
+    await fetch('/api/leads', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: leadId, stage: newStage }),
+    })
+    loadData()
+  }
 
   if (loading) return <SkeletonPage />
 
@@ -343,22 +356,29 @@ export default function LeadsPage() {
               const shown = stageLeads.slice(0, KANBAN_MAX_PER_COL)
               const remaining = stageLeads.length - shown.length
               return (
-                <div key={stage.key} className="w-[260px] flex-shrink-0">
+                <div key={stage.key} className="w-[260px] flex-shrink-0"
+                  onDragOver={e => { e.preventDefault(); setDragOverStage(stage.key) }}
+                  onDragLeave={() => setDragOverStage(null)}
+                  onDrop={e => { e.preventDefault(); if (dragLeadId) handleDrop(dragLeadId, stage.key) }}>
                   <div className="mb-3 flex items-center justify-between">
                     <span className={`inline-flex items-center text-xs font-medium rounded-md px-2 py-1 ${stage.color}`}>
                       {stage.label}
                     </span>
                     <span className="text-xs text-gray-400 tabular-nums">{stageLeads.length}</span>
                   </div>
-                  <div className="space-y-2 min-h-[200px]">
+                  <div className={`space-y-2 min-h-[200px] rounded-lg transition-colors duration-150 ${dragOverStage === stage.key ? 'bg-blue-50/50 ring-2 ring-blue-200 ring-inset' : ''}`}>
                     {shown.map(lead => {
                       const quizPreview = getFirstQuizAnswer(lead)
                       const recent = isRecentLead(lead.date_received)
                       const slaMins = getSLAMinutes(lead.date_received)
                       const slaExpired = recent && lead.stage === 'LEAD' && !lead.first_called_at && slaMins != null && slaMins > SLA_MINUTES
                       return (
-                        <div key={lead.id} onClick={() => setSelectedLead(lead)}
-                          className={`bg-white rounded-lg border ${slaExpired ? 'border-red-200 bg-red-50/30' : 'border-gray-200'} ${stage.borderColor} border-l-[3px] p-3 cursor-pointer hover:border-gray-300 transition-colors duration-[120ms]`}>
+                        <div key={lead.id}
+                          draggable
+                          onDragStart={() => setDragLeadId(lead.id)}
+                          onDragEnd={() => { setDragLeadId(null); setDragOverStage(null) }}
+                          onClick={() => setSelectedLead(lead)}
+                          className={`bg-white rounded-lg border ${slaExpired ? 'border-red-200 bg-red-50/30' : 'border-gray-200'} ${stage.borderColor} border-l-[3px] p-3 cursor-grab active:cursor-grabbing hover:border-gray-300 transition-colors duration-[120ms] ${dragLeadId === lead.id ? 'opacity-50' : ''}`}>
                           {recent && lead.stage === 'LEAD' && !lead.first_called_at && slaMins != null && (
                             <div className={`flex items-center gap-1 text-[10px] font-medium mb-1 ${slaExpired ? 'text-red-600' : 'text-emerald-600'}`}>
                               {slaExpired ? <AlertTriangle className="w-3 h-3" {...iconProps} /> : <Clock className="w-3 h-3" {...iconProps} />}

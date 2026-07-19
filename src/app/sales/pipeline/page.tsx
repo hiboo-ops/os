@@ -30,6 +30,8 @@ export default function PipelinePage() {
   const [calls, setCalls] = useState<Call[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedCall, setSelectedCall] = useState<Call | null>(null)
+  const [dragCallId, setDragCallId] = useState<string | null>(null)
+  const [dragOverStage, setDragOverStage] = useState<string | null>(null)
 
   const loadCalls = () => {
     getAllCalls().then(data => {
@@ -41,6 +43,17 @@ export default function PipelinePage() {
   useEffect(() => {
     loadCalls()
   }, [])
+
+  const handleDrop = async (callId: string, newResult: string) => {
+    setDragCallId(null)
+    setDragOverStage(null)
+    await fetch('/api/calls', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: callId, result: newResult }),
+    })
+    loadCalls()
+  }
 
   const grouped = useMemo(() => {
     const map: Record<string, Call[]> = {}
@@ -66,7 +79,7 @@ export default function PipelinePage() {
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-gray-900">Pipeline</h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          <span className="tabular-nums">{calls.length}</span> calls in de pipeline
+          <span className="tabular-nums">{calls.length}</span> calls in pipeline
         </p>
       </div>
 
@@ -78,7 +91,10 @@ export default function PipelinePage() {
             const totalValue = stageCalls.reduce((sum, c) => sum + (c.deal_value || 0), 0)
 
             return (
-              <div key={stage.key} className="w-[260px] flex-shrink-0">
+              <div key={stage.key} className="w-[260px] flex-shrink-0"
+                onDragOver={e => { e.preventDefault(); setDragOverStage(stage.key) }}
+                onDragLeave={() => setDragOverStage(null)}
+                onDrop={e => { e.preventDefault(); if (dragCallId) handleDrop(dragCallId, stage.key) }}>
                 {/* Column header */}
                 <div className="mb-3">
                   <div className="flex items-center justify-between">
@@ -93,16 +109,19 @@ export default function PipelinePage() {
                 </div>
 
                 {/* Cards */}
-                <div className="space-y-2 min-h-[200px]">
+                <div className={`space-y-2 min-h-[200px] rounded-lg transition-colors duration-150 ${dragOverStage === stage.key ? 'bg-blue-50/50 ring-2 ring-blue-200 ring-inset' : ''}`}>
                   {stageCalls.map(call => (
                     <div
                       key={call.id}
+                      draggable
+                      onDragStart={() => setDragCallId(call.id)}
+                      onDragEnd={() => { setDragCallId(null); setDragOverStage(null) }}
                       onClick={() => setSelectedCall(call)}
-                      className={`bg-white rounded-lg border border-gray-200 ${stage.borderColor} border-l-[3px] p-3.5 cursor-pointer hover:border-gray-300 transition-colors duration-[120ms]`}
+                      className={`bg-white rounded-lg border border-gray-200 ${stage.borderColor} border-l-[3px] p-3.5 cursor-grab active:cursor-grabbing hover:border-gray-300 transition-colors duration-[120ms] ${dragCallId === call.id ? 'opacity-50' : ''}`}
                     >
                       {/* Name */}
                       <div className="font-medium text-sm text-gray-900 truncate">
-                        {call.name || 'Onbekend'}
+                        {call.name || 'Unknown'}
                       </div>
 
                       {/* Date */}
@@ -149,7 +168,7 @@ export default function PipelinePage() {
 
                   {stageCalls.length === 0 && (
                     <div className="rounded-lg border border-dashed border-gray-200 p-4 text-center">
-                      <span className="text-xs text-gray-400">Geen calls</span>
+                      <span className="text-xs text-gray-400">No calls</span>
                     </div>
                   )}
                 </div>
