@@ -1,40 +1,23 @@
 import { supabase } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 
-/**
- * Calendly Webhook Endpoint
- *
- * Handles two event types:
- * - invitee.created → lead booked a call → create call record + update lead
- * - invitee.canceled → lead cancelled → update call record
- *
- * Setup in Calendly:
- * 1. Go to https://calendly.com/integrations/webhooks (or via API)
- * 2. Subscribe to events: invitee.created, invitee.canceled
- * 3. Set webhook URL to: https://your-domain.vercel.app/api/webhooks/calendly
- * 4. Set signing key in env var CALENDLY_WEBHOOK_SECRET (optional but recommended)
- *
- * UTM tracking flows through from the booking link:
- * - utm_source = lead source (ATHENA, QUIZ, etc.)
- * - utm_campaign = creator name
- * - utm_content = ad campaign
- */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
 
-  // Log every webhook for debugging
+  // Log every webhook
   await supabase.from('webhook_logs').insert({
     source: 'calendly',
-    event: body.event || body.trigger || 'unknown',
+    event: body.event || 'unknown',
     payload: body,
   })
 
-  const event = body.event // 'invitee.created' or 'invitee.canceled'
-  const payload = body.payload
+  const event = body.event as string | undefined
+  const payload = body.payload as Record<string, any> | undefined
 
   if (!event || !payload) {
-    return NextResponse.json({ error: 'Invalid payload', received: Object.keys(body) }, { status: 400 })
+    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
   }
 
   try {
@@ -43,39 +26,57 @@ export async function POST(req: NextRequest) {
     } else if (event === 'invitee.canceled') {
       await handleInviteeCanceled(payload)
     }
-
     return NextResponse.json({ success: true })
   } catch (err) {
     console.error('Calendly webhook error:', err)
+    // Log error
+    await supabase.from('webhook_logs').insert({
+      source: 'calendly-error',
+      event,
+      payload: { error: String(err), original: payload },
+    })
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
 
-async function handleInviteeCreated(payload: Record<string, unknown>) {
-  const invitee = payload.invitee as Record<string, unknown> | undefined
-  const eventData = payload.event as Record<string, unknown> | undefined
-  const tracking = payload.tracking as Record<string, unknown> | undefined
+async function handleInviteeCreated(p: Record<string, any>) {
+  // Calendly v2 payload: invitee data is at top level of payload
+  const name = (p.name as string) || ''
+  const email = ((p.email as string) || '').toLowerCase()
+  const tracking = p.tracking as Record<string, any> || {}
+  const scheduledEvent = p.scheduled_event as Record<string, any> || {}
+  const questionsAndAnswers = p.questions_and_answers as { question: string; answer: string; position: number }[] || []
 
-  if (!invitee) return
+  // Scheduled event details
+  const eventName = (scheduledEvent.name as string) || null
+  const startTime = (scheduledEvent.start_time as string) || null
+  const meetingLink = scheduledEvent.location?.join_url as string || null
 
-  const name = invitee.name as string || ''
-  const email = (invitee.email as string || '').toLowerCase()
-  const scheduledAt = (eventData?.start_time as string) || null
-  const eventName = (eventData?.name as string) || null
-  const calendlyEventUri = (eventData?.uri as string) || null
-  const inviteeUri = (invitee.uri as string) || null
+  // Cancel/reschedule URLs
+  const cancelUrl = (p.cancel_url as string) || null
+  const rescheduleUrl = (p.reschedule_url as string) || null
 
-  // UTM params from booking link
-  const utmSource = (tracking?.utm_source as string) || null
-  const utmCampaign = (tracking?.utm_campaign as string) || null
-  const utmContent = (tracking?.utm_content as string) || null
+  // UTM tracking
+  const utmSource = (tracking.utm_source as string) || null
+  const utmCampaign = (tracking.utm_campaign as string) || null
+  const utmContent = (tracking.utm_content as string) || null
 
-  // Extract questions/answers if available
-  const questionsAnswers = invitee.questions_and_answers as { question: string; answer: string }[] | undefined
-  const questions = questionsAnswers?.map(qa => ({
-    question: qa.question,
-    answer: qa.answer,
-  })) || null
+  // Extract phone from questions (look for telefoon/phone)
+  let phone: string | null = null
+  const questions = questionsAndAnswers.map(qa => {
+    if (qa.question.toLowerCase().includes('telefoon') || qa.question.toLowerCase().includes('phone')) {
+      phone = qa.answer
+    }
+    return { question: qa.question, answer: qa.answer }
+  })
+
+  // Extract instagram from questions
+  let instagram: string | null = null
+  for (const qa of questionsAndAnswers) {
+    if (qa.question.toLowerCase().includes('instagram')) {
+      instagram = qa.answer
+    }
+  }
 
   // 1. Find matching lead by email
   let leadId: string | null = null
@@ -99,18 +100,18 @@ async function handleInviteeCreated(payload: Record<string, unknown>) {
       // Update lead stage
       await supabase.from('leads').update({
         stage: 'CLOSING CALL BOOKED',
-        scheduled_call_date: scheduledAt,
+        scheduled_call_date: startTime,
       }).eq('id', lead.id)
     }
   }
 
-  // 2. Find closer from calendly_events table (match on event name)
+  // 2. Find closer from calendly_events table
   let closerId: string | null = null
   if (eventName) {
     const { data: calEvent } = await supabase
       .from('calendly_events')
       .select('default_closer_id')
-      .ilike('name', eventName)
+      .ilike('name', `%${eventName.replace(/[^\w\s]/g, '')}%`)
       .limit(1)
       .single()
 
@@ -123,15 +124,19 @@ async function handleInviteeCreated(payload: Record<string, unknown>) {
   const { data: call } = await supabase.from('calls').insert({
     name,
     email: email || null,
-    date_start_time: scheduledAt,
+    phone,
+    instagram,
+    date_start_time: startTime,
     closer_id: closerId,
     setter_id: setterId,
     source: utmSource,
     source_type: utmContent,
     result: 'CALL BOOKED',
     event_type: eventName,
-    questions: questions,
-    meeting_link: calendlyEventUri,
+    questions: questions.length > 0 ? questions : null,
+    meeting_link: meetingLink,
+    cancel_link: cancelUrl,
+    reschedule_link: rescheduleUrl,
   }).select('id').single()
 
   // 4. Link call to lead
@@ -142,12 +147,9 @@ async function handleInviteeCreated(payload: Record<string, unknown>) {
   }
 }
 
-async function handleInviteeCanceled(payload: Record<string, unknown>) {
-  const invitee = payload.invitee as Record<string, unknown> | undefined
-  if (!invitee) return
-
-  const email = (invitee.email as string || '').toLowerCase()
-  const cancelReason = (invitee.cancel_reason as string) || null
+async function handleInviteeCanceled(p: Record<string, any>) {
+  const email = ((p.email as string) || '').toLowerCase()
+  const cancelReason = (p.canceler_type as string) || null
 
   if (!email) return
 
@@ -168,7 +170,7 @@ async function handleInviteeCanceled(payload: Record<string, unknown>) {
     }).eq('id', call.id)
   }
 
-  // Also update lead stage
+  // Update lead stage back to FOLLOW UP
   const { data: lead } = await supabase
     .from('leads')
     .select('id')
