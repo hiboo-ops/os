@@ -18,7 +18,6 @@ const nav = [
     children: [
       { href: '/leads', label: 'Board', icon: Kanban },
       { href: '/leads/analytics', label: 'Analytics', icon: BarChart3 },
-      { href: '/leads/events', label: 'Events', icon: Calendar },
     ],
   },
   {
@@ -43,6 +42,7 @@ const nav = [
     ],
   },
   { href: '/creators', label: 'Creators', icon: Megaphone },
+  { href: '/admin', label: 'Admin', icon: ClipboardCheck },
 ]
 
 export function Sidebar() {
