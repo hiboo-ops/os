@@ -39,7 +39,7 @@ async function fetchAllLeads(select: string, filters?: { dateFrom?: string; date
     if (filters?.source) q = q.eq('source', filters.source)
 
     const { data } = await q
-    const page = (data || []) as LeadRow[]
+    const page = (data || []) as unknown as LeadRow[]
     all = all.concat(page)
     hasMore = page.length === PAGE_SIZE
     from += PAGE_SIZE
