@@ -34,6 +34,7 @@ export interface Lead {
   follow_up_at: string | null
   calendly_event_id: string | null
   calendly_booking_url: string | null
+  is_legacy: boolean
   creator: { id: string; name: string } | null
   triage_caller: { id: string; name: string } | null
   closer: { id: string; name: string } | null
@@ -98,12 +99,12 @@ export async function getLeadById(id: string) {
 }
 
 export async function getLeadStats() {
-  type StatRow = { id: string; stage: string; source: string | null; first_called_at: string | null; date_received: string | null; time_to_call_minutes: number | null }
+  type StatRow = { id: string; stage: string; source: string | null; first_called_at: string | null; date_received: string | null; time_to_call_minutes: number | null; sla_deadline: string | null; is_legacy: boolean }
   let all: StatRow[] = []
   let from = 0
   let hasMore = true
   while (hasMore) {
-    const { data } = await supabase.from('leads').select('id, stage, source, first_called_at, date_received, time_to_call_minutes').range(from, from + 999)
+    const { data } = await supabase.from('leads').select('id, stage, source, first_called_at, date_received, time_to_call_minutes, sla_deadline, is_legacy').range(from, from + 999)
     const page = (data || []) as unknown as StatRow[]
     all = all.concat(page)
     hasMore = page.length === 1000
@@ -111,8 +112,9 @@ export async function getLeadStats() {
   }
   const active = all.filter(l => LEAD_STAGES.includes(l.stage as LeadStage))
 
-  // Avg time to call (only for leads that have been called)
-  const calledLeads = all.filter(l => l.time_to_call_minutes != null)
+  // Avg time to call — exclude legacy (imported) leads
+  const nonLegacy = all.filter(l => !l.is_legacy)
+  const calledLeads = nonLegacy.filter(l => l.time_to_call_minutes != null)
   const avgTimeToCall = calledLeads.length > 0
     ? Math.round(calledLeads.reduce((sum, l) => sum + (l.time_to_call_minutes || 0), 0) / calledLeads.length)
     : null

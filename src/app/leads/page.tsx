@@ -174,13 +174,14 @@ export default function LeadsPage() {
     [allLeads]
   )
 
+  // KPIs: only non-legacy leads (exclude old imports)
   const recentStats = useMemo(() => {
-    const recent = leads.filter(l => isRecentLead(l.date_received))
+    const nonLegacy = leads.filter(l => !l.is_legacy)
     return {
-      lead: recent.filter(l => l.stage === 'LEAD').length,
-      attempts: recent.filter(l => l.stage.startsWith('ATTEMPT')).length,
-      callBooked: recent.filter(l => l.stage === 'CLOSING CALL BOOKED').length,
-      total: recent.length,
+      lead: nonLegacy.filter(l => l.stage === 'LEAD').length,
+      attempts: nonLegacy.filter(l => l.stage.startsWith('ATTEMPT')).length,
+      callBooked: nonLegacy.filter(l => l.stage === 'CLOSING CALL BOOKED').length,
+      total: nonLegacy.length,
     }
   }, [leads])
 
@@ -238,9 +239,9 @@ export default function LeadsPage() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
-        <KpiCard label="Uncalled (7d)" value={recentStats.lead} captionColor={recentStats.lead > 0 ? 'danger' : undefined} caption={recentStats.lead > 0 ? 'waiting to be called' : undefined} />
-        <KpiCard label="In attempts (7d)" value={recentStats.attempts} />
-        <KpiCard label="Call Booked (7d)" value={recentStats.callBooked} captionColor="success" />
+        <KpiCard label="Uncalled" value={recentStats.lead} captionColor={recentStats.lead > 0 ? 'danger' : undefined} caption={recentStats.lead > 0 ? 'waiting to be called' : undefined} />
+        <KpiCard label="In attempts" value={recentStats.attempts} />
+        <KpiCard label="Call Booked" value={recentStats.callBooked} captionColor="success" />
         <KpiCard label="SLA today" value={slaStatus ? `${slaStatus.today.slaPercent}%` : '—'} captionColor={slaStatus && slaStatus.today.slaPercent < 80 ? 'danger' : 'success'} caption={`< ${SLA_MINUTES} min target`} />
         <KpiCard label="Avg. TTC" value={stats?.avgTimeToCall != null ? `${stats.avgTimeToCall}m` : '—'} />
         <KpiCard label="Total in board" value={leads.length} />

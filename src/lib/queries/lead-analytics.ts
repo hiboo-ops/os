@@ -258,6 +258,7 @@ export async function getSLAStatus(): Promise<SLAStatus> {
     .from('leads')
     .select('id, sla_met, first_called_at, stage')
     .gte('date_received', todayStart.toISOString())
+    .eq('is_legacy', false)
 
   const leads = todayLeads || []
   const total = leads.length
