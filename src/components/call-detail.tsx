@@ -371,16 +371,24 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
         </div>
 
         {/* ── Qualification Questions ── */}
-        {call.questions && Object.keys(call.questions).length > 0 && (
+        {call.questions && (Array.isArray(call.questions) ? call.questions.length > 0 : Object.keys(call.questions).length > 0) && (
           <div className="px-6 py-5 border-b border-gray-100">
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Kwalificatievragen</h3>
-            <div className="space-y-3">
-              {Object.entries(call.questions).map(([question, answer]) => (
-                <div key={question}>
-                  <div className="text-xs font-medium text-gray-500 mb-0.5">{question}</div>
-                  <div className="text-sm text-gray-900">{String(answer)}</div>
-                </div>
-              ))}
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Qualification Questions</h3>
+            <div className="space-y-2">
+              {(Array.isArray(call.questions)
+                ? call.questions.map((qa: { question: string; answer: string }, i: number) => (
+                    <div key={i} className="bg-gray-50 rounded-md px-3 py-2.5">
+                      <div className="text-[11px] text-gray-500 mb-0.5">{qa.question}</div>
+                      <div className="text-sm text-gray-900">{qa.answer}</div>
+                    </div>
+                  ))
+                : Object.entries(call.questions).map(([question, answer]) => (
+                    <div key={question} className="bg-gray-50 rounded-md px-3 py-2.5">
+                      <div className="text-[11px] text-gray-500 mb-0.5">{question}</div>
+                      <div className="text-sm text-gray-900">{String(answer)}</div>
+                    </div>
+                  ))
+              )}
             </div>
           </div>
         )}

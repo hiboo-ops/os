@@ -122,7 +122,14 @@ async function handleInviteeCreated(p: Record<string, any>) {
     }
   }
 
-  // 2. Find closer from calendly_events table
+  // 2. Use lead source if available, otherwise fall back to UTM
+  let callSource = utmSource
+  if (leadId) {
+    const { data: leadData } = await supabase.from('leads').select('source').eq('id', leadId).single()
+    if (leadData?.source) callSource = leadData.source
+  }
+
+  // 3. Find closer from calendly_events table
   let closerId: string | null = null
   if (eventName) {
     const { data: calEvent } = await supabase
@@ -146,7 +153,7 @@ async function handleInviteeCreated(p: Record<string, any>) {
     date_start_time: startTime,
     closer_id: closerId,
     setter_id: setterId,
-    source: utmSource,
+    source: callSource,
     source_type: utmContent,
     result: 'CALL BOOKED',
     event_type: eventName,
