@@ -1,12 +1,13 @@
 import { supabase } from '@/lib/supabase'
 
 interface FunnelMetrics {
-  leads: number
-  toSetter: number
-  setterRate: number
-  calls: number
-  deals: number
-  dealRate: number
+  leadsIn: number
+  contacted: number
+  contactedRate: number
+  callBooked: number
+  callBookedRate: number
+  closed: number
+  closedRate: number
   revenue: number
   revenuePerLead: number
 }
@@ -14,109 +15,97 @@ interface FunnelMetrics {
 interface SourceRow {
   source: string
   leads: number
-  toSetter: number
-  setterRate: number
-  deals: number
-  dealRate: number
+  contacted: number
+  callBooked: number
+  closed: number
   revenue: number
-  revPerLead: number
-}
-
-interface TriageRow {
-  callerId: string | null
-  name: string
-  called: number
-  connected: number
-  toSetter: number
-  avgTimeToCall: number | null
-  slaPercent: number
-}
-
-interface WeekTrend {
-  week: string
-  leads: number
-  toSetter: number
-  setterRate: number
-  avgTTC: number | null
-  slaPercent: number
-}
-
-interface SLAStatus {
-  today: { total: number; withinSLA: number; outsideSLA: number; slaPercent: number }
-  uncalled: number
+  endToEndRate: number
 }
 
 // ─── Funnel Metrics ─────────────────────────────────────────────────────────
 
 export async function getFunnelMetrics(dateFrom?: string, dateTo?: string, source?: string): Promise<FunnelMetrics> {
-  // Get leads in period
-  let leadsQuery = supabase.from('leads').select('id, stage, call_id, source, date_received').limit(10000)
-  if (dateFrom) leadsQuery = leadsQuery.gte('date_received', dateFrom)
-  if (dateTo) leadsQuery = leadsQuery.lte('date_received', dateTo)
-  if (source) leadsQuery = leadsQuery.eq('source', source)
+  let query = supabase.from('leads')
+    .select('id, stage, call_id, first_called_at, is_legacy')
+    .eq('is_legacy', false)
+    .limit(10000)
 
-  const { data: leadsData } = await leadsQuery
-  const leads = leadsData || []
+  if (dateFrom) query = query.gte('date_received', dateFrom)
+  if (dateTo) query = query.lte('date_received', dateTo)
+  if (source) query = query.eq('source', source)
 
-  const totalLeads = leads.length
-  const toSetterLeads = leads.filter(l => l.stage === 'CLOSING CALL BOOKED' || l.stage === 'CLOSED' || l.call_id)
-  const toSetterCount = toSetterLeads.length
-  const setterRate = totalLeads > 0 ? (toSetterCount / totalLeads) * 100 : 0
+  const { data } = await query
+  const leads = data || []
 
-  // Get linked calls and their results
+  const leadsIn = leads.length
+  const contacted = leads.filter(l => l.first_called_at != null).length
+  const callBookedLeads = leads.filter(l =>
+    l.stage === 'CLOSING CALL BOOKED' || l.stage === 'CLOSED' || l.call_id
+  )
+  const callBooked = callBookedLeads.length
+
+  // Get closed deals from linked calls
   const callIds = leads.map(l => l.call_id).filter(Boolean) as string[]
-  let deals = 0
+  let closed = 0
   let revenue = 0
-  let callCount = 0
 
   if (callIds.length > 0) {
-    const { data: callsData } = await supabase
+    const { data: calls } = await supabase
       .from('calls')
       .select('id, result, deal_value')
       .in('id', callIds)
 
-    const calls = callsData || []
-    callCount = calls.length
-    const dealCalls = calls.filter(c => c.result === 'CLOSED')
-    deals = dealCalls.length
-    revenue = dealCalls.reduce((sum, c) => sum + (c.deal_value || 0), 0)
+    const closedCalls = (calls || []).filter(c => c.result === 'CLOSED')
+    closed = closedCalls.length
+    revenue = closedCalls.reduce((sum, c) => sum + (c.deal_value || 0), 0)
   }
 
-  const dealRate = callCount > 0 ? (deals / callCount) * 100 : 0
-  const revenuePerLead = totalLeads > 0 ? revenue / totalLeads : 0
-
-  return { leads: totalLeads, toSetter: toSetterCount, setterRate, calls: callCount, deals, dealRate, revenue, revenuePerLead }
+  return {
+    leadsIn,
+    contacted,
+    contactedRate: leadsIn > 0 ? (contacted / leadsIn) * 100 : 0,
+    callBooked,
+    callBookedRate: contacted > 0 ? (callBooked / contacted) * 100 : 0,
+    closed,
+    closedRate: callBooked > 0 ? (closed / callBooked) * 100 : 0,
+    revenue,
+    revenuePerLead: leadsIn > 0 ? revenue / leadsIn : 0,
+  }
 }
 
 // ─── Source Performance ─────────────────────────────────────────────────────
 
 export async function getSourcePerformance(dateFrom?: string, dateTo?: string): Promise<SourceRow[]> {
-  let query = supabase.from('leads').select('id, source, stage, call_id, date_received, ad_campaign, creator_name').limit(10000)
+  let query = supabase.from('leads')
+    .select('id, source, stage, call_id, first_called_at, is_legacy')
+    .eq('is_legacy', false)
+    .limit(10000)
+
   if (dateFrom) query = query.gte('date_received', dateFrom)
   if (dateTo) query = query.lte('date_received', dateTo)
 
-  const { data: leadsData } = await query
-  const leads = leadsData || []
+  const { data } = await query
+  const leads = data || []
 
-  // Group by source (use creator_name or ad_campaign for more granularity)
+  // Group by source
   const sourceMap = new Map<string, typeof leads>()
   for (const lead of leads) {
-    const key = lead.creator_name || lead.source || 'Unknown'
+    const key = lead.source || 'UNKNOWN'
     if (!sourceMap.has(key)) sourceMap.set(key, [])
     sourceMap.get(key)!.push(lead)
   }
 
-  // Get all call IDs for deal lookup
+  // Get call results for deal lookup
   const allCallIds = leads.map(l => l.call_id).filter(Boolean) as string[]
-  let callResults = new Map<string, { result: string; deal_value: number | null }>()
+  const callResults = new Map<string, { result: string; deal_value: number | null }>()
 
   if (allCallIds.length > 0) {
-    const { data: callsData } = await supabase
+    const { data: calls } = await supabase
       .from('calls')
       .select('id, result, deal_value')
       .in('id', allCallIds)
 
-    for (const c of callsData || []) {
+    for (const c of calls || []) {
       callResults.set(c.id, { result: c.result, deal_value: c.deal_value })
     }
   }
@@ -124,131 +113,43 @@ export async function getSourcePerformance(dateFrom?: string, dateTo?: string): 
   const rows: SourceRow[] = []
   for (const [source, sourceLeads] of sourceMap) {
     const total = sourceLeads.length
-    const toSetter = sourceLeads.filter(l => l.stage === 'CLOSING CALL BOOKED' || l.stage === 'CLOSED' || l.call_id).length
-    const setterRate = total > 0 ? (toSetter / total) * 100 : 0
+    const contacted = sourceLeads.filter(l => l.first_called_at != null).length
+    const callBooked = sourceLeads.filter(l =>
+      l.stage === 'CLOSING CALL BOOKED' || l.stage === 'CLOSED' || l.call_id
+    ).length
 
-    let deals = 0
+    let closed = 0
     let revenue = 0
     for (const lead of sourceLeads) {
       if (lead.call_id && callResults.has(lead.call_id)) {
         const call = callResults.get(lead.call_id)!
-        if (call.result === 'DEAL') {
-          deals++
+        if (call.result === 'CLOSED') {
+          closed++
           revenue += call.deal_value || 0
         }
       }
     }
 
-    const dealRate = toSetter > 0 ? (deals / toSetter) * 100 : 0
-    const revPerLead = total > 0 ? revenue / total : 0
-
-    rows.push({ source, leads: total, toSetter, setterRate, deals, dealRate, revenue, revPerLead })
+    rows.push({
+      source,
+      leads: total,
+      contacted,
+      callBooked,
+      closed,
+      revenue,
+      endToEndRate: total > 0 ? (closed / total) * 100 : 0,
+    })
   }
 
   return rows.sort((a, b) => b.leads - a.leads)
 }
 
-// ─── Triage Performance ─────────────────────────────────────────────────────
+// ─── SLA Status (used by leads board) ───────────────────────────────────────
 
-export async function getTriagePerformance(dateFrom?: string, dateTo?: string): Promise<TriageRow[]> {
-  let query = supabase.from('leads').select('id, triage_caller_id, stage, attempt_count, first_called_at, time_to_call_minutes, sla_met, date_received').limit(10000)
-  if (dateFrom) query = query.gte('date_received', dateFrom)
-  if (dateTo) query = query.lte('date_received', dateTo)
-  // Only include leads that have been called at least once
-  query = query.gt('attempt_count', 0)
-
-  const { data: leadsData } = await query
-  const leads = leadsData || []
-
-  // Get setter/triage caller names
-  const { data: setters } = await supabase.from('setters').select('id, name')
-  const setterMap = new Map((setters || []).map(s => [s.id, s.name]))
-
-  // Group by triage caller
-  const callerMap = new Map<string, typeof leads>()
-  for (const lead of leads) {
-    const key = lead.triage_caller_id || 'unassigned'
-    if (!callerMap.has(key)) callerMap.set(key, [])
-    callerMap.get(key)!.push(lead)
-  }
-
-  const rows: TriageRow[] = []
-  for (const [callerId, callerLeads] of callerMap) {
-    const called = callerLeads.length
-    const connected = callerLeads.filter(l => l.stage === 'CLOSING CALL BOOKED' || l.stage === 'CLOSED' || l.stage === 'NOT QUALIFIED').length
-    const toSetter = callerLeads.filter(l => l.stage === 'CLOSING CALL BOOKED' || l.stage === 'CLOSED').length
-
-    const ttcLeads = callerLeads.filter(l => l.time_to_call_minutes != null)
-    const avgTimeToCall = ttcLeads.length > 0
-      ? Math.round(ttcLeads.reduce((sum, l) => sum + (l.time_to_call_minutes || 0), 0) / ttcLeads.length)
-      : null
-
-    const slaLeads = callerLeads.filter(l => l.sla_met != null)
-    const slaPercent = slaLeads.length > 0
-      ? Math.round((slaLeads.filter(l => l.sla_met === true).length / slaLeads.length) * 100)
-      : 0
-
-    rows.push({
-      callerId: callerId === 'unassigned' ? null : callerId,
-      name: callerId === 'unassigned' ? 'Unassigned' : (setterMap.get(callerId) || 'Unknown'),
-      called,
-      connected,
-      toSetter,
-      avgTimeToCall,
-      slaPercent,
-    })
-  }
-
-  return rows.sort((a, b) => b.called - a.called)
+interface SLAStatus {
+  today: { total: number; withinSLA: number; outsideSLA: number; slaPercent: number }
+  uncalled: number
 }
-
-// ─── Weekly Trends ──────────────────────────────────────────────────────────
-
-export async function getWeeklyTrends(weeksBack = 12): Promise<WeekTrend[]> {
-  const now = new Date()
-  const startDate = new Date(now.getTime() - weeksBack * 7 * 24 * 60 * 60 * 1000)
-
-  const { data: leadsData } = await supabase
-    .from('leads')
-    .select('id, stage, date_received, time_to_call_minutes, sla_met, call_id')
-    .gte('date_received', startDate.toISOString())
-    .limit(10000)
-
-  const leads = leadsData || []
-
-  // Group by ISO week
-  const weekMap = new Map<string, typeof leads>()
-  for (const lead of leads) {
-    if (!lead.date_received) continue
-    const d = new Date(lead.date_received)
-    const week = getISOWeek(d)
-    if (!weekMap.has(week)) weekMap.set(week, [])
-    weekMap.get(week)!.push(lead)
-  }
-
-  const trends: WeekTrend[] = []
-  for (const [week, weekLeads] of [...weekMap].sort((a, b) => a[0].localeCompare(b[0]))) {
-    const total = weekLeads.length
-    const toSetter = weekLeads.filter(l => l.stage === 'CLOSING CALL BOOKED' || l.stage === 'CLOSED' || l.call_id).length
-    const setterRate = total > 0 ? Math.round((toSetter / total) * 100) : 0
-
-    const ttcLeads = weekLeads.filter(l => l.time_to_call_minutes != null)
-    const avgTTC = ttcLeads.length > 0
-      ? Math.round(ttcLeads.reduce((sum, l) => sum + (l.time_to_call_minutes || 0), 0) / ttcLeads.length)
-      : null
-
-    const slaLeads = weekLeads.filter(l => l.sla_met != null)
-    const slaPercent = slaLeads.length > 0
-      ? Math.round((slaLeads.filter(l => l.sla_met === true).length / slaLeads.length) * 100)
-      : 0
-
-    trends.push({ week, leads: total, toSetter, setterRate, avgTTC, slaPercent })
-  }
-
-  return trends
-}
-
-// ─── SLA Status (real-time) ─────────────────────────────────────────────────
 
 export async function getSLAStatus(): Promise<SLAStatus> {
   const todayStart = new Date()
@@ -266,7 +167,6 @@ export async function getSLAStatus(): Promise<SLAStatus> {
   const outsideSLA = leads.filter(l => l.sla_met === false).length
   const slaPercent = total > 0 ? Math.round((withinSLA / total) * 100) : 100
 
-  // Uncalled leads — only recent (< 7 days), not old imported ones
   const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const { data: uncalledData } = await supabase
     .from('leads')
@@ -279,15 +179,4 @@ export async function getSLAStatus(): Promise<SLAStatus> {
     today: { total, withinSLA, outsideSLA, slaPercent },
     uncalled: (uncalledData || []).length,
   }
-}
-
-// ─── Helper ─────────────────────────────────────────────────────────────────
-
-function getISOWeek(d: Date): string {
-  const date = new Date(d.getTime())
-  date.setHours(0, 0, 0, 0)
-  date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7))
-  const week1 = new Date(date.getFullYear(), 0, 4)
-  const weekNum = 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7)
-  return `${date.getFullYear()}-W${String(weekNum).padStart(2, '0')}`
 }
