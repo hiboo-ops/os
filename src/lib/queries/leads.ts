@@ -45,33 +45,37 @@ export type LeadStage = typeof LEAD_STAGES[number]
 
 export async function getAllLeads(filters?: { source?: string; stage?: string; search?: string; activeOnly?: boolean }) {
   const PAGE_SIZE = 1000
-  let allResults: Lead[] = []
-  let from = 0
-  let hasMore = true
 
-  while (hasMore) {
+  // Build a base query to get count
+  let countQuery = supabase.from('leads').select('id', { count: 'exact', head: true })
+  if (filters?.source) countQuery = countQuery.eq('source', filters.source)
+  if (filters?.stage) countQuery = countQuery.eq('stage', filters.stage)
+  if (filters?.activeOnly) countQuery = countQuery.in('stage', [...LEAD_STAGES])
+
+  const { count } = await countQuery
+  const total = count || 0
+  if (total === 0) return []
+
+  // Fetch all pages in parallel
+  const batches = Math.ceil(total / PAGE_SIZE)
+  const promises = Array.from({ length: batches }, (_, i) => {
     let query = supabase
       .from('leads')
       .select('*')
       .order('date_received', { ascending: true })
-      .range(from, from + PAGE_SIZE - 1)
+      .range(i * PAGE_SIZE, (i + 1) * PAGE_SIZE - 1)
 
     if (filters?.source) query = query.eq('source', filters.source)
     if (filters?.stage) query = query.eq('stage', filters.stage)
     if (filters?.activeOnly) query = query.in('stage', [...LEAD_STAGES])
 
-    const { data, error } = await query
-    if (error) { console.error('Leads query error:', error); break }
-    const page = (data || []) as unknown as Lead[]
-    allResults = allResults.concat(page)
-    hasMore = page.length === PAGE_SIZE
-    from += PAGE_SIZE
-  }
+    return query
+  })
+
+  const results = await Promise.all(promises)
+  let allResults = results.flatMap(r => (r.data || []) as unknown as Lead[])
 
   if (filters?.search) {
-    // Server-side search is applied in the query via .or() but Supabase
-    // doesn't support .or() with .in() in the same query easily,
-    // so we filter client-side for now but on already-fetched data
     const q = filters.search.toLowerCase()
     allResults = allResults.filter(l =>
       l.name?.toLowerCase().includes(q) ||

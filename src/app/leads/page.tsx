@@ -120,8 +120,13 @@ export default function LeadsPage() {
 
   useEffect(() => { loadData() }, [loadData])
   useEffect(() => {
-    refreshRef.current = setInterval(loadData, 30000)
-    return () => { if (refreshRef.current) clearInterval(refreshRef.current) }
+    const refresh = () => { if (document.visibilityState === 'visible') loadData() }
+    document.addEventListener('visibilitychange', refresh)
+    refreshRef.current = setInterval(refresh, 30000)
+    return () => {
+      document.removeEventListener('visibilitychange', refresh)
+      if (refreshRef.current) clearInterval(refreshRef.current)
+    }
   }, [loadData])
 
   // Queue: leads sorted by priority (LEAD first sorted by date, then FOLLOW UP by follow_up_at, then ATTEMPTs)
@@ -189,15 +194,18 @@ export default function LeadsPage() {
     return counts
   }, [leads])
 
-  const handleDrop = async (leadId: string, newStage: string) => {
+  const handleDrop = (leadId: string, newStage: string) => {
     setDragLeadId(null)
     setDragOverStage(null)
-    await fetch('/api/leads', {
+    // Optimistic: update local state instantly
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage: newStage } : l))
+    setAllLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage: newStage } : l))
+    // Fire-and-forget API call
+    fetch('/api/leads', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: leadId, stage: newStage }),
     })
-    loadData()
   }
 
   if (loading) return <SkeletonPage />

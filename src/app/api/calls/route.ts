@@ -115,35 +115,31 @@ export async function PATCH(req: NextRequest) {
 
   // ── AUTO-SYNC: call result change → update linked lead stage ──
   if (safeUpdates.result) {
-    const { data: call } = await supabase.from('calls').select('email').eq('id', id).single()
-    if (call?.email) {
+    const resultToLeadStage: Record<string, string> = {
+      'CALL BOOKED': 'CLOSING CALL BOOKED',
+      'RESCHEDULE': 'CLOSING CALL BOOKED',
+      'DEPOSIT': 'CLOSING CALL BOOKED',
+      'FOLLOW UP': 'FOLLOW UP',
+      'FOLLOW UP LONG TERM': 'FOLLOW UP',
+      'CANCELLED BY LEAD': 'FOLLOW UP',
+      'CANCELLED BY CLOSER': 'FOLLOW UP',
+      'NO SHOW': 'FOLLOW UP',
+      'CLOSED': 'CLOSED',
+      'LOST - BROKE': 'LOST - BROKE',
+      'LOST - NO INTEREST': 'LOST - NO INTEREST',
+      'LOST - BAD FIT': 'LOST - NO INTEREST',
+    }
+    const newLeadStage = resultToLeadStage[safeUpdates.result as string]
+    if (newLeadStage) {
+      // Direct FK lookup: find lead where call_id = this call
       const { data: lead } = await supabase
         .from('leads')
         .select('id')
-        .eq('email', call.email)
-        .order('created_at', { ascending: false })
-        .limit(1)
+        .eq('call_id', id)
         .single()
 
       if (lead) {
-        const resultToLeadStage: Record<string, string> = {
-          'CALL BOOKED': 'CLOSING CALL BOOKED',
-          'RESCHEDULE': 'CLOSING CALL BOOKED',
-          'DEPOSIT': 'CLOSING CALL BOOKED',
-          'FOLLOW UP': 'FOLLOW UP',
-          'FOLLOW UP LONG TERM': 'FOLLOW UP',
-          'CANCELLED BY LEAD': 'FOLLOW UP',
-          'CANCELLED BY CLOSER': 'FOLLOW UP',
-          'NO SHOW': 'FOLLOW UP',
-          'CLOSED': 'CLOSED',
-          'LOST - BROKE': 'LOST - BROKE',
-          'LOST - NO INTEREST': 'LOST - NO INTEREST',
-          'LOST - BAD FIT': 'LOST - NO INTEREST',
-        }
-        const newLeadStage = resultToLeadStage[safeUpdates.result as string]
-        if (newLeadStage) {
-          await supabase.from('leads').update({ stage: newLeadStage }).eq('id', lead.id)
-        }
+        await supabase.from('leads').update({ stage: newLeadStage }).eq('id', lead.id)
       }
     }
   }

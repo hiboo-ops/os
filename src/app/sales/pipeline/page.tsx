@@ -44,15 +44,17 @@ export default function PipelinePage() {
     loadCalls()
   }, [])
 
-  const handleDrop = async (callId: string, newResult: string) => {
+  const handleDrop = (callId: string, newResult: string) => {
     setDragCallId(null)
     setDragOverStage(null)
-    await fetch('/api/calls', {
+    // Optimistic: update local state instantly
+    setCalls(prev => prev.map(c => c.id === callId ? { ...c, result: newResult as Call['result'] } : c))
+    // Fire-and-forget API call (also auto-syncs lead stage)
+    fetch('/api/calls', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: callId, result: newResult }),
     })
-    loadCalls()
   }
 
   const grouped = useMemo(() => {
