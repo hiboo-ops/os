@@ -174,16 +174,13 @@ export default function LeadsPage() {
     [allLeads]
   )
 
-  // KPIs: only non-legacy leads (exclude old imports)
-  const recentStats = useMemo(() => {
-    const nonLegacy = leads.filter(l => !l.is_legacy)
-    return {
-      lead: nonLegacy.filter(l => l.stage === 'LEAD').length,
-      attempts: nonLegacy.filter(l => l.stage.startsWith('ATTEMPT')).length,
-      callBooked: nonLegacy.filter(l => l.stage === 'CLOSING CALL BOOKED').length,
-      total: nonLegacy.length,
-    }
-  }, [leads])
+  // KPIs: all leads (including legacy) for volume metrics
+  const recentStats = useMemo(() => ({
+    lead: leads.filter(l => l.stage === 'LEAD').length,
+    attempts: leads.filter(l => l.stage.startsWith('ATTEMPT')).length,
+    callBooked: leads.filter(l => l.stage === 'CLOSING CALL BOOKED').length,
+    total: leads.length,
+  }), [leads])
 
   // Stage counts for filter
   const stageCounts = useMemo(() => {
