@@ -32,6 +32,8 @@ export interface Lead {
   sla_deadline: string | null
   sla_met: boolean | null
   follow_up_at: string | null
+  calendly_event_id: string | null
+  calendly_booking_url: string | null
   creator: { id: string; name: string } | null
   triage_caller: { id: string; name: string } | null
   closer: { id: string; name: string } | null

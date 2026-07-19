@@ -20,7 +20,14 @@ const iconProps = { strokeWidth: 1.75 } as const
 const SLA_MINUTES = 5
 const KANBAN_MAX_PER_COL = 50
 
-const CALENDLY_BASE = 'https://calendly.com/hiboo' // adjust to actual Calendly link
+interface CalendlyEvent {
+  id: string
+  name: string
+  url: string
+  description: string | null
+  default_closer_id: string | null
+  closer: { id: string; name: string } | null
+}
 
 const STAGE_CONFIG: { key: string; label: string; color: string; borderColor: string }[] = [
   { key: 'LEAD',                label: 'LEAD',                color: 'bg-blue-50 text-blue-700',       borderColor: 'border-l-blue-400' },
@@ -63,6 +70,17 @@ function isRecentLead(dateReceived: string | null): boolean {
 function getFirstQuizAnswer(lead: Lead): string | null {
   if (!lead.quiz_answers || lead.quiz_answers.length === 0) return null
   return lead.quiz_answers[0].answer
+}
+
+function buildCalendlyUrl(baseUrl: string, lead: Lead): string {
+  const params = new URLSearchParams()
+  if (lead.name) params.set('name', lead.name)
+  if (lead.email) params.set('email', lead.email)
+  if (lead.source) params.set('utm_source', lead.source)
+  if (lead.creator_name) params.set('utm_campaign', lead.creator_name)
+  if (lead.ad_campaign) params.set('utm_content', lead.ad_campaign)
+  const sep = baseUrl.includes('?') ? '&' : '?'
+  return `${baseUrl}${sep}${params.toString()}`
 }
 
 type ViewMode = 'queue' | 'kanban' | 'list'
@@ -468,6 +486,13 @@ function CallActionModal({ lead, onClose, onDone }: { lead: Lead; onClose: () =>
   const [nextStage, setNextStage] = useState<string>('FOLLOW UP')
   const [followUpAt, setFollowUpAt] = useState('')
   const [saving, setSaving] = useState(false)
+  const [events, setEvents] = useState<CalendlyEvent[]>([])
+  const [selectedEventId, setSelectedEventId] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/calendly-events').then(r => r.json()).then(setEvents)
+  }, [])
 
   const handleNotAnswered = async () => {
     setSaving(true)
@@ -503,6 +528,12 @@ function CallActionModal({ lead, onClose, onDone }: { lead: Lead; onClose: () =>
     if (nextStage === 'FOLLOW UP' && followUpAt) {
       updates.follow_up_at = new Date(followUpAt).toISOString()
     }
+    if (nextStage === 'CLOSING CALL BOOKED' && selectedEventId) {
+      const ev = events.find(e => e.id === selectedEventId)
+      updates.calendly_event_id = selectedEventId
+      updates.calendly_booking_url = ev ? buildCalendlyUrl(ev.url, lead) : null
+      if (ev?.default_closer_id) updates.closer_id = ev.default_closer_id
+    }
     if (!lead.first_called_at) {
       updates.first_called_at = now
       if (lead.date_received) {
@@ -514,11 +545,6 @@ function CallActionModal({ lead, onClose, onDone }: { lead: Lead; onClose: () =>
     await fetch('/api/leads', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) })
     setSaving(false)
     onDone()
-  }
-
-  const copyCalendly = () => {
-    const url = `${CALENDLY_BASE}?name=${encodeURIComponent(lead.name)}&email=${encodeURIComponent(lead.email || '')}`
-    navigator.clipboard.writeText(url)
   }
 
   return (
@@ -565,21 +591,40 @@ function CallActionModal({ lead, onClose, onDone }: { lead: Lead; onClose: () =>
               </div>
             )}
             {nextStage === 'CLOSING CALL BOOKED' && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-                <div className="flex items-center gap-2 text-sm text-emerald-700 font-medium mb-2">
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 space-y-3">
+                <div className="flex items-center gap-2 text-sm text-emerald-700 font-medium">
                   <Calendar className="w-4 h-4" {...iconProps} /> Book via Calendly
                 </div>
-                <div className="flex gap-2">
-                  <a href={`${CALENDLY_BASE}?name=${encodeURIComponent(lead.name)}&email=${encodeURIComponent(lead.email || '')}`}
-                    target="_blank" rel="noopener noreferrer"
-                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-md text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors">
-                    <Link2 className="w-3 h-3" {...iconProps} /> Open Calendly
-                  </a>
-                  <button onClick={copyCalendly}
-                    className="flex items-center gap-1 px-3 py-2 rounded-md text-xs font-medium bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors">
-                    <Copy className="w-3 h-3" {...iconProps} /> Copy
-                  </button>
-                </div>
+                {events.length > 0 ? (
+                  <>
+                    <select value={selectedEventId} onChange={e => setSelectedEventId(e.target.value)}
+                      className="w-full text-sm border border-emerald-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                      <option value="">Select event...</option>
+                      {events.map(ev => (
+                        <option key={ev.id} value={ev.id}>{ev.name}{ev.closer ? ` (${ev.closer.name})` : ''}</option>
+                      ))}
+                    </select>
+                    {selectedEventId && (() => {
+                      const ev = events.find(e => e.id === selectedEventId)
+                      if (!ev) return null
+                      const bookingUrl = buildCalendlyUrl(ev.url, lead)
+                      return (
+                        <div className="flex gap-2">
+                          <a href={bookingUrl} target="_blank" rel="noopener noreferrer"
+                            className="flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-md text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors">
+                            <Link2 className="w-3 h-3" {...iconProps} /> Open Calendly
+                          </a>
+                          <button onClick={() => { navigator.clipboard.writeText(bookingUrl); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
+                            className="flex items-center gap-1 px-3 py-2 rounded-md text-xs font-medium bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors">
+                            <Copy className="w-3 h-3" {...iconProps} /> {copied ? 'Copied!' : 'Copy'}
+                          </button>
+                        </div>
+                      )
+                    })()}
+                  </>
+                ) : (
+                  <p className="text-xs text-emerald-600">No events configured. Add events in settings.</p>
+                )}
               </div>
             )}
             <div>
@@ -719,12 +764,11 @@ function LeadDetail({ lead, onClose, onUpdate }: { lead: Lead; onClose: () => vo
         </div>
 
         {/* Calendly for CLOSING CALL BOOKED */}
-        {lead.stage === 'CLOSING CALL BOOKED' && (
+        {lead.stage === 'CLOSING CALL BOOKED' && lead.calendly_booking_url && (
           <div className="px-6 py-5 border-b border-gray-100">
             <h3 className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-3">Closing Call</h3>
             <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-              <a href={`${CALENDLY_BASE}?name=${encodeURIComponent(lead.name)}&email=${encodeURIComponent(lead.email || '')}`}
-                target="_blank" rel="noopener noreferrer"
+              <a href={lead.calendly_booking_url} target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-2 text-sm text-emerald-700 font-medium hover:text-emerald-800">
                 <Calendar className="w-4 h-4" {...iconProps} /> Open Calendly booking page
               </a>

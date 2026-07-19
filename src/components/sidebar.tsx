@@ -6,7 +6,7 @@ import {
   BarChart3, Users, Target, DollarSign, GraduationCap,
   Megaphone, ClipboardCheck, Menu, X, LayoutDashboard,
   Columns3, ListChecks, FileEdit, ChevronDown, BookOpen,
-  Phone, Kanban, CalendarDays, CreditCard, Handshake
+  Phone, Kanban, CalendarDays, CreditCard, Handshake, Calendar
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -18,6 +18,7 @@ const nav = [
     children: [
       { href: '/leads', label: 'Board', icon: Kanban },
       { href: '/leads/analytics', label: 'Analytics', icon: BarChart3 },
+      { href: '/leads/events', label: 'Events', icon: Calendar },
     ],
   },
   {
