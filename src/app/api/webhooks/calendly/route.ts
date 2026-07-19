@@ -22,11 +22,19 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
+
+  // Log every webhook for debugging
+  await supabase.from('webhook_logs').insert({
+    source: 'calendly',
+    event: body.event || body.trigger || 'unknown',
+    payload: body,
+  })
+
   const event = body.event // 'invitee.created' or 'invitee.canceled'
   const payload = body.payload
 
   if (!event || !payload) {
-    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
+    return NextResponse.json({ error: 'Invalid payload', received: Object.keys(body) }, { status: 400 })
   }
 
   try {
