@@ -15,7 +15,10 @@ import {
   Search, Plus, Phone, Mail, X, Check, Clock, PhoneCall,
   PhoneOff, ChevronRight, LayoutGrid, List, ClipboardList,
   AlertTriangle, CheckCircle2, PhoneMissed, Calendar, Link2, Copy,
+  Play, FileText,
 } from 'lucide-react'
+import { DialerProvider, CallButton, DialerSettings, DialableLead } from '@/components/dialer'
+import { getTriageCallsForLead, TriageCall } from '@/lib/queries/triage-calls'
 
 const iconProps = { strokeWidth: 1.75 } as const
 const SLA_MINUTES = 5
@@ -208,9 +211,18 @@ export default function LeadsPage() {
     })
   }
 
+  // Na ophangen via de dialer: verse leaddata ophalen (de voice-webhook heeft
+  // first_called_at/sla_met al server-side gezet) en het log-modal openen.
+  const handleCallEnded = useCallback(async (dialLead: DialableLead) => {
+    const { data } = await supabase.from('leads').select('*').eq('id', dialLead.id).single()
+    if (data) setCallAction(data as unknown as Lead)
+    loadData()
+  }, [loadData])
+
   if (loading) return <SkeletonPage />
 
   return (
+    <DialerProvider onCallEnded={handleCallEnded}>
     <div>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
@@ -222,6 +234,7 @@ export default function LeadsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <DialerSettings />
           <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
             <button onClick={() => setView('queue')} title="Call Queue"
               className={`p-1.5 rounded-md transition-colors duration-[120ms] ${view === 'queue' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
@@ -329,12 +342,7 @@ export default function LeadsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
-                          {lead.phone && (
-                            <a href={`tel:${lead.phone}`}
-                              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors duration-[120ms]">
-                              <PhoneCall className="w-3 h-3" {...iconProps} /> Call
-                            </a>
-                          )}
+                          <CallButton lead={lead} />
                           <button onClick={() => setCallAction(lead)}
                             className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors duration-[120ms]">
                             <ClipboardList className="w-3 h-3" {...iconProps} /> Log
@@ -402,8 +410,9 @@ export default function LeadsPage() {
                             {lead.attempt_count > 0 && <span className="ml-auto tabular-nums">{lead.attempt_count}x called</span>}
                           </div>
                           {lead.phone && (
-                            <div className="flex items-center gap-1.5 mt-2">
+                            <div className="flex items-center gap-1.5 mt-2" onClick={e => e.stopPropagation()}>
                               <span className="text-xs text-gray-500 truncate flex-1">{lead.phone}</span>
+                              <CallButton lead={lead} />
                               <button onClick={e => { e.stopPropagation(); setCallAction(lead) }}
                                 className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors duration-[120ms]">
                                 <ClipboardList className="w-3 h-3" {...iconProps} /> Log
@@ -504,6 +513,7 @@ export default function LeadsPage() {
         <AddLeadModal onClose={() => setShowAddModal(false)} onCreated={loadData} />
       )}
     </div>
+    </DialerProvider>
   )
 }
 
@@ -717,9 +727,12 @@ function LeadDetail({ lead, onClose, onUpdate }: { lead: Lead; onClose: () => vo
         {/* Call action */}
         <div className="px-6 py-4 bg-blue-50 border-y border-blue-100">
           {lead.phone ? (
-            <a href={`tel:${lead.phone}`} className="flex items-center gap-2 text-blue-700 font-medium text-sm hover:text-blue-800">
-              <PhoneCall className="w-4 h-4" {...iconProps} /> {lead.phone}
-            </a>
+            <div className="flex items-center gap-3">
+              <CallButton lead={lead} size="md" />
+              <a href={`tel:${lead.phone}`} className="flex items-center gap-2 text-blue-700 font-medium text-sm hover:text-blue-800">
+                <PhoneCall className="w-4 h-4" {...iconProps} /> {lead.phone}
+              </a>
+            </div>
           ) : (
             <div className="flex items-center gap-2 text-gray-500 text-sm">
               <PhoneOff className="w-4 h-4" {...iconProps} /> No phone number
@@ -790,6 +803,9 @@ function LeadDetail({ lead, onClose, onUpdate }: { lead: Lead; onClose: () => vo
             </div>
           </div>
         </div>
+
+        {/* Triage-gesprekken (Twilio) */}
+        <TriageCallsSection leadId={lead.id} />
 
         {/* Call link + status */}
         {lead.call_id && (
@@ -891,6 +907,91 @@ function AddLeadModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
             {creating ? 'Adding...' : 'Add lead'}
           </Button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Triage-gesprekken (Twilio-opnames + samenvattingen) ── */
+const CALL_STATUS_LABELS: Record<string, { label: string; className: string }> = {
+  'completed':   { label: 'Afgerond',     className: 'bg-emerald-50 text-emerald-700' },
+  'in-progress': { label: 'Bezig',        className: 'bg-blue-50 text-blue-700' },
+  'no-answer':   { label: 'Geen gehoor',  className: 'bg-amber-50 text-amber-700' },
+  'busy':        { label: 'In gesprek',   className: 'bg-amber-50 text-amber-700' },
+  'failed':      { label: 'Mislukt',      className: 'bg-red-50 text-red-700' },
+  'canceled':    { label: 'Geannuleerd',  className: 'bg-gray-100 text-gray-600' },
+  'initiated':   { label: 'Gestart',      className: 'bg-gray-100 text-gray-600' },
+  'ringing':     { label: 'Gaat over',    className: 'bg-gray-100 text-gray-600' },
+}
+
+function formatCallDuration(seconds: number | null): string {
+  if (seconds == null) return '—'
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+}
+
+function TriageCallsSection({ leadId }: { leadId: string }) {
+  const [calls, setCalls] = useState<TriageCall[]>([])
+
+  useEffect(() => {
+    let active = true
+    const load = () => getTriageCallsForLead(leadId).then(data => { if (active) setCalls(data) })
+    load()
+    // Poll zolang de slide-over open is; vangt ook binnenkomende samenvattingen op
+    const interval = setInterval(load, 15000)
+    return () => { active = false; clearInterval(interval) }
+  }, [leadId])
+
+  if (calls.length === 0) return null
+
+  return (
+    <div className="px-6 py-5 border-b border-gray-100">
+      <h3 className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-3">Gesprekken</h3>
+      <div className="space-y-3">
+        {calls.map(call => {
+          const status = CALL_STATUS_LABELS[call.status] || { label: call.status, className: 'bg-gray-100 text-gray-600' }
+          return (
+            <div key={call.id} className="bg-gray-50 rounded-lg p-3 space-y-2">
+              <div className="flex items-center gap-2 text-xs">
+                <span className={`inline-flex items-center rounded-md px-2 py-0.5 font-medium ${status.className}`}>{status.label}</span>
+                <span className="text-gray-500">{formatDate(call.created_at)}</span>
+                {call.duration_seconds != null && (
+                  <span className="text-gray-400 tabular-nums ml-auto">{formatCallDuration(call.duration_seconds)}</span>
+                )}
+              </div>
+              {call.recording_sid && (
+                <div>
+                  <div className="flex items-center gap-1 text-[11px] text-gray-500 mb-1">
+                    <Play className="w-3 h-3" {...iconProps} /> Opname
+                  </div>
+                  <audio controls preload="none" className="w-full h-8"
+                    src={`/api/twilio/recordings/${call.recording_sid}`} />
+                </div>
+              )}
+              {(call.transcription_status === 'pending' || call.transcription_status === 'processing') && call.recording_sid && (
+                <div className="text-[11px] text-gray-400 italic">Samenvatting wordt gemaakt…</div>
+              )}
+              {call.summary && (
+                <div className="bg-white border border-gray-200 rounded-md px-3 py-2.5">
+                  <div className="text-[11px] text-gray-500 mb-1 font-medium">Samenvatting</div>
+                  <div className="text-sm text-gray-900 whitespace-pre-line">{call.summary}</div>
+                </div>
+              )}
+              {call.transcript && (
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-gray-500 hover:text-gray-700 flex items-center gap-1">
+                    <FileText className="w-3 h-3" {...iconProps} /> Transcript
+                  </summary>
+                  <div className="mt-2 text-gray-600 whitespace-pre-line bg-white border border-gray-200 rounded-md px-3 py-2 max-h-48 overflow-y-auto">
+                    {call.transcript}
+                  </div>
+                </details>
+              )}
+              {call.transcription_status === 'failed' && (
+                <div className="text-[11px] text-red-500">Transcriptie mislukt</div>
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
