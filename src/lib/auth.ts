@@ -10,6 +10,9 @@ export interface AuthUser {
   name: string
   role: UserRole
   teamMemberId: string
+  closerId: string | null
+  setterId: string | null
+  coachId: string | null
 }
 
 export async function getAuthUser(): Promise<AuthUser | null> {
@@ -23,9 +26,7 @@ export async function getAuthUser(): Promise<AuthUser | null> {
         getAll() {
           return cookieStore.getAll()
         },
-        setAll() {
-          // Read-only in API routes
-        },
+        setAll() {},
       },
     }
   )
@@ -33,10 +34,9 @@ export async function getAuthUser(): Promise<AuthUser | null> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  // Lookup team member
   const { data: member } = await supabase
     .from('team_members')
-    .select('id, name, role')
+    .select('id, name, role, closer_id, setter_id, coach_id')
     .eq('user_id', user.id)
     .eq('active', true)
     .single()
@@ -47,8 +47,11 @@ export async function getAuthUser(): Promise<AuthUser | null> {
     id: user.id,
     email: user.email || '',
     name: member.name,
-    role: member.role as UserRole,
+    role: (member as unknown as Record<string, unknown>).role as UserRole,
     teamMemberId: member.id,
+    closerId: (member as unknown as Record<string, unknown>).closer_id as string | null,
+    setterId: (member as unknown as Record<string, unknown>).setter_id as string | null,
+    coachId: (member as unknown as Record<string, unknown>).coach_id as string | null,
   }
 }
 

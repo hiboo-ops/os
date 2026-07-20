@@ -33,6 +33,11 @@ export async function GET(req: NextRequest) {
   if (sourceType) query = query.eq('source_type', sourceType)
   if (result) query = query.eq('result', result)
 
+  // Role-based filtering: closers only see their own calls
+  if (user!.role === 'CLOSER' && user!.closerId) {
+    query = query.eq('closer_id', user!.closerId)
+  }
+
   const { data, error } = await query
 
   if (error) {

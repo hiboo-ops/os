@@ -8,20 +8,30 @@ import {
   Columns3, ListChecks, FileEdit, ChevronDown, BookOpen,
   Phone, Kanban, CalendarDays, CreditCard, Handshake, Calendar
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
-const nav = [
+type UserRole = 'ADMIN' | 'CLOSER' | 'SETTER' | 'COACH' | 'FINANCE'
+
+interface NavItem {
+  href: string
+  label: string
+  icon: typeof BarChart3
+  roles?: UserRole[] // if undefined, visible to all
+  children?: NavItem[]
+}
+
+const nav: NavItem[] = [
   { href: '/', label: 'Dashboard', icon: BarChart3 },
-  { href: '/clients', label: 'Clients', icon: Users },
+  { href: '/clients', label: 'Clients', icon: Users, roles: ['ADMIN', 'FINANCE'] },
   {
-    href: '/leads', label: 'Leads', icon: Target,
+    href: '/leads', label: 'Leads', icon: Target, roles: ['ADMIN', 'SETTER'],
     children: [
       { href: '/leads', label: 'Board', icon: Kanban },
       { href: '/leads/analytics', label: 'Analytics', icon: BarChart3 },
     ],
   },
   {
-    href: '/sales', label: 'Sales', icon: Phone,
+    href: '/sales', label: 'Sales', icon: Phone, roles: ['ADMIN', 'CLOSER'],
     children: [
       { href: '/sales', label: 'Overview', icon: LayoutDashboard },
       { href: '/sales/pipeline', label: 'Pipeline', icon: Kanban },
@@ -30,9 +40,9 @@ const nav = [
       { href: '/sales/deals', label: 'Deals', icon: Handshake },
     ],
   },
-  { href: '/finance', label: 'Finance', icon: DollarSign },
+  { href: '/finance', label: 'Finance', icon: DollarSign, roles: ['ADMIN', 'FINANCE'] },
   {
-    href: '/delivery', label: 'Delivery', icon: GraduationCap,
+    href: '/delivery', label: 'Delivery', icon: GraduationCap, roles: ['ADMIN', 'COACH'],
     children: [
       { href: '/delivery', label: 'Overview', icon: LayoutDashboard },
       { href: '/delivery/crm', label: 'CRM', icon: Columns3 },
@@ -41,8 +51,8 @@ const nav = [
       { href: '/delivery/backfill', label: 'Backfill', icon: FileEdit },
     ],
   },
-  { href: '/creators', label: 'Creators', icon: Megaphone },
-  { href: '/admin', label: 'Admin', icon: ClipboardCheck },
+  { href: '/creators', label: 'Creators', icon: Megaphone, roles: ['ADMIN'] },
+  { href: '/admin', label: 'Admin', icon: ClipboardCheck, roles: ['ADMIN'] },
 ]
 
 export function Sidebar() {
@@ -53,7 +63,17 @@ export function Sidebar() {
     '/sales': pathname.startsWith('/sales'),
     '/leads': pathname.startsWith('/leads'),
   })
+  const [userRole, setUserRole] = useState<UserRole | null>(null)
+
+  useEffect(() => {
+    fetch('/api/me').then(r => r.json()).then(data => {
+      if (data.role) setUserRole(data.role)
+    }).catch(() => setUserRole('ADMIN')) // fallback
+  }, [])
+
   const toggleExpanded = (href: string) => setExpanded(prev => ({ ...prev, [href]: !prev[href] }))
+
+  const visibleNav = nav.filter(item => !item.roles || !userRole || item.roles.includes(userRole))
 
   return (
     <>
@@ -85,7 +105,7 @@ export function Sidebar() {
 
         {/* Nav */}
         <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
-          {nav.map((item) => {
+          {visibleNav.map((item) => {
             const Icon = item.icon
             const hasChildren = 'children' in item && item.children
             const active = hasChildren
@@ -148,7 +168,10 @@ export function Sidebar() {
 
         {/* Footer */}
         <div className="px-5 py-3 border-t border-gray-100">
-          <span className="text-[11px] text-gray-400">Hiboo OS v0.6</span>
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-gray-400">Hiboo OS v0.8</span>
+            {userRole && <span className="text-[10px] font-medium text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">{userRole}</span>}
+          </div>
         </div>
       </aside>
     </>
