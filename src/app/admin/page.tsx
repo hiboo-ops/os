@@ -21,8 +21,15 @@ interface CalendlyEvent {
   url: string
   description: string | null
   default_source: string | null
+  default_setter_id: string | null
   search_leads_first: boolean
   active: boolean
+  setter?: { id: string; name: string } | null
+}
+
+interface Setter {
+  id: string
+  name: string
 }
 
 interface TeamMember {
@@ -52,6 +59,7 @@ interface CalendlyStatus {
 
 export default function AdminPage() {
   const [events, setEvents] = useState<CalendlyEvent[]>([])
+  const [setters, setSetters] = useState<Setter[]>([])
   const [members, setMembers] = useState<TeamMember[]>([])
   const [logs, setLogs] = useState<WebhookLog[]>([])
   const [calendlyStatus, setCalendlyStatus] = useState<CalendlyStatus | null>(null)
@@ -61,13 +69,21 @@ export default function AdminPage() {
   const [connecting, setConnecting] = useState(false)
 
   const loadData = async () => {
-    const [evRes, memberRes, logRes, statusRes] = await Promise.all([
+    const [evRes, setterRes, memberRes, logRes, statusRes] = await Promise.all([
       fetch('/api/calendly-events').then(r => r.json()).catch(() => []),
+      supabase.from('setters').select('id, name').order('name'),
       supabase.from('team_members').select('*').order('name'),
       supabase.from('webhook_logs').select('*').order('created_at', { ascending: false }).limit(10),
       fetch('/api/webhooks/calendly/setup').then(r => r.json()).catch(() => ({ connected: false })),
     ])
-    setEvents(Array.isArray(evRes) ? evRes : [])
+    // Enrich events with setter names
+    const setterMap = new Map(((setterRes.data || []) as Setter[]).map(s => [s.id, s]))
+    const enrichedEvents = (Array.isArray(evRes) ? evRes : []).map((ev: CalendlyEvent) => ({
+      ...ev,
+      setter: ev.default_setter_id ? setterMap.get(ev.default_setter_id) || null : null,
+    }))
+    setEvents(enrichedEvents)
+    setSetters((setterRes.data || []) as Setter[])
     setMembers((memberRes.data || []) as unknown as TeamMember[])
     setLogs((logRes.data || []) as unknown as WebhookLog[])
     setCalendlyStatus(statusRes)
@@ -171,6 +187,11 @@ export default function AdminPage() {
                       className="text-xs text-gray-400 hover:text-blue-600 flex items-center gap-1 mt-1 truncate max-w-[400px]">
                       <Link2 className="w-3 h-3 flex-shrink-0" {...iconProps} /> {ev.url}
                     </a>
+                    <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-500">
+                      {ev.setter && <span>Setter: <strong className="text-gray-700">{ev.setter.name}</strong></span>}
+                      {ev.default_source && <span>Source: <strong className="text-gray-700">{ev.default_source}</strong></span>}
+                      <span className="text-gray-400">Closer: auto (Calendly host)</span>
+                    </div>
                     {ev.description && <div className="text-xs text-gray-500 mt-1">{ev.description}</div>}
                   </div>
                   <button onClick={() => deleteEvent(ev.id)} className="p-1.5 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors ml-3">
@@ -318,15 +339,15 @@ export default function AdminPage() {
       </section>
 
       {/* Modals */}
-      {showAddEvent && <AddEventModal onClose={() => setShowAddEvent(false)} onCreated={loadData} />}
+      {showAddEvent && <AddEventModal setters={setters} onClose={() => setShowAddEvent(false)} onCreated={loadData} />}
       {showAddMember && <AddMemberModal onClose={() => setShowAddMember(false)} onCreated={loadData} />}
     </div>
   )
 }
 
 /* ── Add Event Modal ── */
-function AddEventModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [form, setForm] = useState({ name: '', url: '', description: '', default_source: 'ATHENA', search_leads_first: true })
+function AddEventModal({ setters, onClose, onCreated }: { setters: Setter[]; onClose: () => void; onCreated: () => void }) {
+  const [form, setForm] = useState({ name: '', url: '', description: '', default_source: 'ATHENA', default_setter_id: '', search_leads_first: true })
   const [creating, setCreating] = useState(false)
 
   const handleCreate = async () => {
@@ -335,7 +356,10 @@ function AddEventModal({ onClose, onCreated }: { onClose: () => void; onCreated:
     await fetch('/api/calendly-events', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify({
+        ...form,
+        default_setter_id: form.default_setter_id || null,
+      }),
     })
     setCreating(false)
     onCreated()
@@ -377,6 +401,15 @@ function AddEventModal({ onClose, onCreated }: { onClose: () => void; onCreated:
               {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
             <p className="text-[10px] text-gray-400 mt-1">Used when the lead has no existing source in the database.</p>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Default setter</label>
+            <select value={form.default_setter_id} onChange={e => setForm({ ...form, default_setter_id: e.target.value })}
+              className="mt-1.5 w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700">
+              <option value="">None</option>
+              {setters.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <p className="text-[10px] text-gray-400 mt-1">The triage caller / setter assigned to calls from this event.</p>
           </div>
           <div>
             <label className="flex items-center gap-2 cursor-pointer">

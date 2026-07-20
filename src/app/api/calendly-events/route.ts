@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
     url: body.url,
     description: body.description || null,
     default_source: body.default_source || null,
+    default_setter_id: body.default_setter_id || null,
     search_leads_first: body.search_leads_first ?? true,
   }).select().single()
   if (error) return NextResponse.json({ error: 'Failed to create event' }, { status: 500 })

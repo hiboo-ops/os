@@ -96,7 +96,7 @@ async function handleInviteeCreated(p: Record<string, any>) {
   }
 
   // ── MATCH CALENDLY EVENT CONFIG ──
-  let eventConfig: { default_source: string | null; search_leads_first: boolean } | null = null
+  let eventConfig: { default_source: string | null; default_setter_id: string | null; search_leads_first: boolean } | null = null
   if (eventName) {
     const { data } = await supabase
       .from('calendly_events')
@@ -108,6 +108,7 @@ async function handleInviteeCreated(p: Record<string, any>) {
       const d = data as unknown as Record<string, unknown>
       eventConfig = {
         default_source: (d.default_source as string) || null,
+        default_setter_id: (d.default_setter_id as string) || null,
         search_leads_first: d.search_leads_first !== false,
       }
     }
@@ -115,6 +116,7 @@ async function handleInviteeCreated(p: Record<string, any>) {
 
   const searchLeadsFirst = eventConfig?.search_leads_first ?? true
   const eventDefaultSource = eventConfig?.default_source || utmSource || 'CALENDLY'
+  const eventDefaultSetterId = eventConfig?.default_setter_id || null
 
   // ── CLOSER: from Calendly host (event_memberships) ──
   let closerId: string | null = null
@@ -134,7 +136,7 @@ async function handleInviteeCreated(p: Record<string, any>) {
 
   // ── LEAD LOOKUP ──
   let leadId: string | null = null
-  let setterId: string | null = null
+  let setterId: string | null = eventDefaultSetterId
   let callSource: string = eventDefaultSource
   let triageNotes: string | null = null
   let creatorName: string | null = utmCampaign
