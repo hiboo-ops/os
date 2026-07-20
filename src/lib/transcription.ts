@@ -64,8 +64,10 @@ async function summarizeWithClaude(transcript: string, leadName: string): Promis
 
   const block = response.content[0]
   const text = block.type === 'text' ? block.text : ''
+  // Haal JSON uit een eventueel ```json-codeblok of omliggende tekst
+  const jsonMatch = text.match(/\{[\s\S]*\}/)
   try {
-    const parsed = JSON.parse(text)
+    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : text)
     return {
       samenvatting: parsed.samenvatting || text,
       uitkomst: parsed.uitkomst || null,
