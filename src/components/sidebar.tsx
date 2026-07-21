@@ -31,6 +31,7 @@ const nav: NavItem[] = [
       { href: '/leads/analytics', label: 'Analytics', icon: BarChart3 },
     ],
   },
+  { href: '/eod/setter', label: 'Setters', icon: ClipboardList, roles: ['ADMIN', 'SETTER'] },
   {
     href: '/sales', label: 'Sales', icon: Phone, roles: ['ADMIN', 'CLOSER'],
     children: [
@@ -41,18 +42,14 @@ const nav: NavItem[] = [
       { href: '/sales/deals', label: 'Deals', icon: Handshake },
     ],
   },
-  { href: '/finance', label: 'Finance', icon: DollarSign, roles: ['ADMIN', 'FINANCE'] },
   {
-    href: '/eod', label: 'EOD', icon: ClipboardList, roles: ['ADMIN', 'SETTER', 'CLOSER', 'FINANCE'],
+    href: '/finance', label: 'Finance', icon: DollarSign, roles: ['ADMIN', 'FINANCE'],
     children: [
-      { href: '/eod', label: 'Overview', icon: LayoutDashboard, roles: ['ADMIN'] },
-      { href: '/eod/setter', label: 'Setter', icon: Target, roles: ['ADMIN', 'SETTER'] },
-      { href: '/eod/closer', label: 'Closer', icon: Phone, roles: ['ADMIN', 'CLOSER'] },
-      { href: '/eod/finance', label: 'Finance', icon: DollarSign, roles: ['ADMIN', 'FINANCE'] },
-      { href: '/eod/partner-manager', label: 'Partner Manager', icon: Handshake, roles: ['ADMIN'] },
-      { href: '/eod/creator', label: 'Creator', icon: Megaphone, roles: ['ADMIN'] },
+      { href: '/finance', label: 'Overzicht', icon: LayoutDashboard },
+      { href: '/eod/finance', label: 'EOD', icon: ClipboardList },
     ],
   },
+  { href: '/eod/partner-manager', label: 'Partner Manager', icon: Handshake, roles: ['ADMIN'] },
   {
     href: '/delivery', label: 'Delivery', icon: GraduationCap, roles: ['ADMIN', 'COACH'],
     children: [
@@ -63,7 +60,14 @@ const nav: NavItem[] = [
       { href: '/delivery/backfill', label: 'Backfill', icon: FileEdit },
     ],
   },
-  { href: '/creators', label: 'Creators', icon: Megaphone, roles: ['ADMIN'] },
+  {
+    href: '/creators', label: 'Creators', icon: Megaphone, roles: ['ADMIN'],
+    children: [
+      { href: '/creators', label: 'Overzicht', icon: LayoutDashboard },
+      { href: '/eod/creator', label: 'EOD', icon: ClipboardList },
+    ],
+  },
+  { href: '/eod', label: 'EOD Overzicht', icon: ClipboardCheck, roles: ['ADMIN'] },
   { href: '/admin', label: 'Admin', icon: ClipboardCheck, roles: ['ADMIN'] },
 ]
 
@@ -74,7 +78,8 @@ export function Sidebar() {
     '/delivery': pathname.startsWith('/delivery'),
     '/sales': pathname.startsWith('/sales'),
     '/leads': pathname.startsWith('/leads'),
-    '/eod': pathname.startsWith('/eod'),
+    '/finance': pathname.startsWith('/finance') || pathname === '/eod/finance',
+    '/creators': pathname.startsWith('/creators') || pathname === '/eod/creator',
   })
   const [userRole, setUserRole] = useState<UserRole | null>(null)
 
