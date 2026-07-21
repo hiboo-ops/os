@@ -233,6 +233,37 @@ export async function updateAccountLtv(accountId: string) {
   return ltv
 }
 
+// ── INCOMING PAYMENT HELPERS ──
+
+export async function createIncomingPayment(input: {
+  account_id: string
+  contract_id?: string | null
+  installment_number: number
+  amount: number
+  due_date?: string | null
+  stripe_link?: string | null
+  whop_link?: string | null
+}) {
+  const admin = getSupabaseAdmin()
+
+  const { data, error } = await admin
+    .from('incoming_payments')
+    .insert({
+      account_id: input.account_id,
+      contract_id: input.contract_id || null,
+      installment_number: input.installment_number,
+      amount: input.amount,
+      due_date: input.due_date || null,
+      stripe_link: input.stripe_link || null,
+      whop_link: input.whop_link || null,
+    })
+    .select()
+    .single()
+
+  if (error) throw error
+  return data as IncomingPayment
+}
+
 // ── VERIFICATIE-QUEUE ──
 
 export async function getPendingVerifications() {
