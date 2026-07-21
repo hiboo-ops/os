@@ -46,6 +46,8 @@ const nav: NavItem[] = [
     href: '/finance', label: 'Finance', icon: DollarSign, roles: ['ADMIN', 'FINANCE'],
     children: [
       { href: '/finance', label: 'Overzicht', icon: LayoutDashboard },
+      { href: '/finance/accounts', label: 'Accounts', icon: Users },
+      { href: '/finance/verificatie', label: 'Verificatie', icon: ClipboardCheck },
       { href: '/eod/finance', label: 'EOD', icon: ClipboardList },
     ],
   },
