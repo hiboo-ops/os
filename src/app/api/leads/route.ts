@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser, requireRole } from '@/lib/auth'
+import { sendSlackNotification } from '@/lib/slack'
 
 export async function POST(req: NextRequest) {
   const user = await getAuthUser()
@@ -10,6 +11,18 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const { error, data } = await supabase.from('leads').insert(body).select().single()
   if (error) return NextResponse.json({ error: 'Failed to create lead' }, { status: 500 })
+
+  try {
+    const naam = data.name || 'Onbekend'
+    const bron = data.source || 'Onbekend'
+    await sendSlackNotification(`Nieuwe lead: ${naam} (${bron})`, [
+      {
+        type: 'section',
+        text: { type: 'mrkdwn', text: `*Nieuwe lead*\n*Naam:* ${naam}\n*Bron:* ${bron}` },
+      },
+    ])
+  } catch { /* Slack mag nooit crashen */ }
+
   return NextResponse.json(data)
 }
 
