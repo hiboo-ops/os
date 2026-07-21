@@ -2,8 +2,6 @@ import { supabase } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser, requireRole } from '@/lib/auth'
 import { sendSlackNotification } from '@/lib/slack'
-import { getSupabaseAdmin } from '@/lib/supabase-admin'
-import { findAccountByEmail, createAccount } from '@/lib/queries/accounts'
 
 export async function GET(req: NextRequest) {
   const user = await getAuthUser()
@@ -178,114 +176,6 @@ export async function PATCH(req: NextRequest) {
         },
       ])
     } catch { /* Slack mag nooit crashen */ }
-  }
-
-  // ── BRIDGE: CLOSED/DEPOSIT → account + contract + incoming_payments ──
-  if (safeUpdates.result === 'CLOSED' || safeUpdates.result === 'DEPOSIT') {
-    try {
-      const admin = getSupabaseAdmin()
-
-      // Haal volledige call-data op
-      const { data: call } = await admin
-        .from('calls')
-        .select('*, closer:closers(id, name), setter:setters(id, name)')
-        .eq('id', id)
-        .single()
-
-      if (call) {
-        // 1. Account: match op email of maak nieuw
-        let account = call.email ? await findAccountByEmail(call.email) : null
-
-        // Zoek gekoppelde lead voor attributie
-        const { data: lead } = await admin
-          .from('leads')
-          .select('id, creator_id, source')
-          .eq('call_id', id)
-          .maybeSingle()
-
-        if (!account) {
-          account = await createAccount({
-            name: call.name,
-            email: call.email,
-            phone: call.phone,
-            source: lead?.source || call.source || null,
-            creator_id: lead?.creator_id || null,
-            setter_id: call.setter_id || null,
-            closer_id: call.closer_id || null,
-            lead_id: lead?.id || null,
-            call_id: id,
-          })
-        }
-
-        // 2. Contract aanmaken
-        const dealValue = Number(call.deal_value) || 0
-        const { data: contract } = await admin
-          .from('contracts')
-          .insert({
-            account_id: account.id,
-            call_id: id,
-            name: call.name || 'Contract',
-            deal_value: dealValue,
-            payment_plan: call.payment_plan || null,
-            type: 'NEW_DEAL',
-            source: 'SALES',
-            contract_url: call.contract_url || null,
-          })
-          .select()
-          .single()
-
-        // 3. Incoming_payments: eerste deposit + eventuele termijnen
-        if (contract) {
-          const installments: Array<{
-            account_id: string
-            contract_id: string
-            installment_number: number
-            amount: number
-            due_date: string | null
-          }> = []
-
-          const firstDeposit = Number(call.first_deposit) || 0
-          if (firstDeposit > 0) {
-            installments.push({
-              account_id: account.id,
-              contract_id: contract.id,
-              installment_number: 1,
-              amount: firstDeposit,
-              due_date: new Date().toISOString().split('T')[0],
-            })
-          }
-
-          // Check of er inline installments in het contract staan
-          const { data: existingContract } = await admin
-            .from('contracts')
-            .select('*')
-            .eq('id', contract.id)
-            .single()
-
-          if (existingContract) {
-            for (let i = 2; i <= 6; i++) {
-              const amt = Number(existingContract[`installment_${i}_amount` as keyof typeof existingContract]) || 0
-              const dt = existingContract[`installment_${i}_date` as keyof typeof existingContract] as string | null
-              if (amt > 0) {
-                installments.push({
-                  account_id: account.id,
-                  contract_id: contract.id,
-                  installment_number: i,
-                  amount: amt,
-                  due_date: dt || null,
-                })
-              }
-            }
-          }
-
-          if (installments.length > 0) {
-            await admin.from('incoming_payments').insert(installments)
-          }
-        }
-      }
-    } catch {
-      // Bridge mag de PATCH response niet blokkeren
-    }
   }
 
   return NextResponse.json({ success: true })
