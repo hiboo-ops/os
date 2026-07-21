@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
     signer_name,
     signer_email,
     signer_mobile,
+    package_id,
   } = body as {
     call_id: string
     account_id: string
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest) {
     signer_name: string
     signer_email: string
     signer_mobile?: string
+    package_id?: string
   }
 
   if (!call_id || !account_id || !deal_value || !first_payment_id) {
@@ -76,6 +78,19 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  // 0. Pakket opzoeken voor esign template_id
+  let esignTemplateId: string | undefined
+  if (package_id) {
+    const { data: pkg } = await admin
+      .from('packages')
+      .select('esign_template_id')
+      .eq('id', package_id)
+      .single()
+    if (pkg?.esign_template_id) {
+      esignTemplateId = pkg.esign_template_id
+    }
+  }
+
   // 1. Contract aanmaken
   const paymentPlanSummary = `${number_of_installments} termijnen`
   const { data: contract, error: contractErr } = await admin
@@ -89,6 +104,7 @@ export async function POST(req: NextRequest) {
       type: 'NEW_DEAL',
       source: 'SALES',
       esign_status: 'PENDING',
+      ...(package_id ? { package_id } : {}),
     })
     .select()
     .single()
@@ -139,6 +155,7 @@ export async function POST(req: NextRequest) {
 
   const esignResult = await createEsignContract({
     title: `Contract ${signer_name} — €${deal_value}`,
+    templateId: esignTemplateId,
     signer: {
       name: signer_name,
       email: signer_email,
