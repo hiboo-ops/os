@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { sendSlackNotification } from '@/lib/slack'
 
@@ -135,12 +136,44 @@ async function handleInviteeCreated(p: Record<string, any>) {
     }
   }
 
+  // ── ATTRIBUTION LINK MATCHING ──
+  let attributionCreatorId: string | null = null
+  let attributionCreatorName: string | null = null
+  let attributionSource: string | null = null
+
+  try {
+    const slugCandidates = [utmCampaign, utmSource, utmContent].filter(Boolean) as string[]
+    if (slugCandidates.length > 0) {
+      const admin = getSupabaseAdmin()
+      const { data: attrLinks } = await admin
+        .from('attribution_links')
+        .select('source, creator_id, creators(id, name)')
+        .in('slug', slugCandidates)
+        .eq('active', true)
+        .limit(1)
+
+      if (attrLinks && attrLinks.length > 0) {
+        const attr = attrLinks[0] as Record<string, unknown>
+        const creator = attr.creators as { id: string; name: string } | null
+        if (creator) {
+          attributionCreatorId = creator.id
+          attributionCreatorName = creator.name
+        }
+        if (attr.source) attributionSource = attr.source as string
+      }
+    }
+  } catch (attrErr) {
+    console.error('[Calendly] Attribution matching mislukt:', attrErr)
+  }
+
   // ── LEAD LOOKUP ──
   let leadId: string | null = null
   let setterId: string | null = eventDefaultSetterId
-  let callSource: string = eventDefaultSource
+  let callSource: string = attributionSource && !eventConfig?.default_source
+    ? attributionSource
+    : eventDefaultSource
   let triageNotes: string | null = null
-  let creatorName: string | null = utmCampaign
+  let creatorName: string | null = attributionCreatorName || utmCampaign
   let adCampaign: string | null = utmContent
 
   if (searchLeadsFirst && email) {
@@ -165,6 +198,7 @@ async function handleInviteeCreated(p: Record<string, any>) {
         scheduled_call_date: startTime,
         phone: phone || undefined,
         quiz_answers: questions.length > 0 ? questions : undefined,
+        ...(attributionCreatorId ? { creator_id: attributionCreatorId } : {}),
       }).eq('id', lead.id)
     }
   }
@@ -181,6 +215,7 @@ async function handleInviteeCreated(p: Record<string, any>) {
       sla_deadline: new Date(Date.now() + 5 * 60000).toISOString(),
       scheduled_call_date: startTime,
       creator_name: creatorName,
+      creator_id: attributionCreatorId,
       ad_campaign: adCampaign,
       quiz_answers: questions.length > 0 ? questions : null,
     }).select('id').single()

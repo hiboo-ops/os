@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { sendSlackEodSummary } from '@/lib/slack'
+import { sendToPurpose } from '@/lib/slack'
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (!reports || reports.length === 0) {
-    await sendSlackEodSummary(`EOD Samenvatting ${today}: geen rapporten ingediend.`)
+    await sendToPurpose('eod', `EOD Samenvatting ${today}: geen rapporten ingediend.`)
     return NextResponse.json({ message: 'Geen rapporten, melding verstuurd' })
   }
 
@@ -69,7 +69,8 @@ export async function GET(req: NextRequest) {
     blocks.push({ type: 'divider' })
   }
 
-  await sendSlackEodSummary(
+  await sendToPurpose(
+    'eod',
     `EOD Samenvatting ${today} — ${reports.length} rapport(en)`,
     blocks
   )

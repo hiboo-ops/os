@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { sendSlackNotification } from '@/lib/slack'
+import { sendToPurpose } from '@/lib/slack'
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
@@ -29,7 +29,8 @@ export async function GET(req: NextRequest) {
     (l) => `- *${l.name || 'Onbekend'}* (${l.source || '?'}) — deadline: ${l.sla_deadline}`
   )
 
-  await sendSlackNotification(
+  await sendToPurpose(
+    'sla',
     `SLA-alert: ${leads.length} lead(s) met verstreken deadline`,
     [
       {

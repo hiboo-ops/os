@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser, requireRole } from '@/lib/auth'
 import { sendSlackNotification } from '@/lib/slack'
@@ -9,6 +10,35 @@ export async function POST(req: NextRequest) {
   if (denied) return denied
 
   const body = await req.json()
+
+  // ── ATTRIBUTION LINK MATCHING ──
+  try {
+    const slug = body.utm_campaign || body.utm_source || body.slug
+    if (slug) {
+      const admin = getSupabaseAdmin()
+      const { data: attrLinks } = await admin
+        .from('attribution_links')
+        .select('source, creator_id, creators(id, name)')
+        .eq('slug', slug)
+        .eq('active', true)
+        .limit(1)
+
+      if (attrLinks && attrLinks.length > 0) {
+        const attr = attrLinks[0] as Record<string, unknown>
+        const creator = attr.creators as { id: string; name: string } | null
+        if (creator) {
+          body.creator_id = creator.id
+          body.creator_name = creator.name
+        }
+        if (attr.source && !body.source) {
+          body.source = attr.source as string
+        }
+      }
+    }
+  } catch (attrErr) {
+    console.error('[Leads] Attribution matching mislukt:', attrErr)
+  }
+
   const { error, data } = await supabase.from('leads').insert(body).select().single()
   if (error) return NextResponse.json({ error: 'Failed to create lead' }, { status: 500 })
 
