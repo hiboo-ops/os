@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/sla-check",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 9 * * *"
     },
     {
       "path": "/api/cron/eod-summary",
