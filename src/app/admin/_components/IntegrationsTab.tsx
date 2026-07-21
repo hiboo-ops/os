@@ -5,12 +5,14 @@ import { CalendlyPanel } from './integrations/CalendlyPanel'
 import { SlackPanel } from './integrations/SlackPanel'
 import { WhopStripePanel } from './integrations/WhopStripePanel'
 import { LovablePanel } from './integrations/LovablePanel'
+import { ESignaturesPanel } from './integrations/ESignaturesPanel'
 
 const SUB_TABS = [
   { key: 'calendly', label: 'Calendly' },
   { key: 'slack', label: 'Slack' },
   { key: 'whop-stripe', label: 'Whop / Stripe' },
   { key: 'lovable', label: 'Lovable' },
+  { key: 'esignatures', label: 'eSignatures' },
 ] as const
 
 type SubTabKey = (typeof SUB_TABS)[number]['key']
@@ -41,6 +43,7 @@ export function IntegrationsTab() {
       {active === 'slack' && <SlackPanel />}
       {active === 'whop-stripe' && <WhopStripePanel />}
       {active === 'lovable' && <LovablePanel />}
+      {active === 'esignatures' && <ESignaturesPanel />}
     </div>
   )
 }
