@@ -59,6 +59,9 @@ export interface AccountContract {
   source: string | null
   contract_signed: boolean | null
   contract_url: string | null
+  esign_contract_id: string | null
+  esign_status: string | null
+  contract_pdf_url: string | null
   created_at: string
 }
 
