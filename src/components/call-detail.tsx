@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatDate } from '@/lib/format'
@@ -9,8 +9,7 @@ import {
   X, Save, Check, Copy, ExternalLink,
   Phone, Mail, AtSign,
   Calendar, User, UserCheck, Globe, Video,
-  MessageSquare, Link as LinkIcon, CreditCard,
-  Send, ChevronDown,
+  Send, CreditCard, FileText, Plus,
 } from 'lucide-react'
 
 const iconProps = { strokeWidth: 1.75 } as const
@@ -20,6 +19,23 @@ const RESULT_OPTIONS: CallResult[] = [
   'DEPOSIT', 'CLOSED', 'LOST - BROKE', 'LOST - NO INTEREST',
   'LOST - BAD FIT', 'NO SHOW', 'CANCELLED BY LEAD', 'CANCELLED BY CLOSER',
 ]
+
+type PayProvider = 'STRIPE' | 'WHOP' | 'MANUAL'
+
+interface PaymentLinkState {
+  incoming_payment_id: string
+  account_id: string
+  pay_token: string
+  provider: string
+  url: string | null
+  status: 'SCHEDULED' | 'PAID'
+  is_deposit: boolean
+}
+
+interface ScheduleRow {
+  amount: number
+  due_date: string
+}
 
 interface CallDetailProps {
   call: Call
@@ -42,6 +58,16 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
   const [saved, setSaved] = useState(false)
   const [copied, setCopied] = useState('')
   const [slackSent, setSlackSent] = useState<Record<string, boolean>>({})
+
+  // ── First Payment Link state ──
+  const [payAmount, setPayAmount] = useState<number | ''>(call.first_deposit ?? '')
+  const [payProvider, setPayProvider] = useState<PayProvider>('MANUAL')
+  const [isDeposit, setIsDeposit] = useState(false)
+  const [payLinkCreating, setPayLinkCreating] = useState(false)
+  const [payLink, setPayLink] = useState<PaymentLinkState | null>(null)
+
+  // ── Contract modal state ──
+  const [showContractModal, setShowContractModal] = useState(false)
 
   // Lock body scroll
   useEffect(() => {
@@ -92,11 +118,43 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
 
   const sendToSlack = async (noteType: string) => {
     setSlackSent(prev => ({ ...prev, [noteType]: true }))
-    // Future: POST to /api/slack
-    // For now, just set the flag visually
     setTimeout(() => {
       setSlackSent(prev => ({ ...prev, [noteType]: false }))
     }, 3000)
+  }
+
+  const createPaymentLink = async () => {
+    if (!payAmount || payAmount <= 0) return
+    setPayLinkCreating(true)
+    try {
+      const res = await fetch('/api/payment-links', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          call_id: call.id,
+          amount: payAmount,
+          provider: payProvider,
+          is_deposit: isDeposit,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setPayLink({
+          incoming_payment_id: data.incoming_payment_id,
+          account_id: data.account_id,
+          pay_token: data.pay_token,
+          provider: data.provider,
+          url: data.url,
+          status: 'SCHEDULED',
+          is_deposit: data.is_deposit,
+        })
+        onUpdate()
+      }
+    } catch (err) {
+      console.error('Payment link creation failed:', err)
+    } finally {
+      setPayLinkCreating(false)
+    }
   }
 
   const formatTime = (dateStr: string | null): string => {
@@ -108,6 +166,9 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
       return '—'
     }
   }
+
+  const showClosingPanel = result === 'CLOSED' || result === 'DEPOSIT'
+  const canCreateContract = result === 'CLOSED' && payLink !== null
 
   return (
     <div className="fixed inset-0 z-50">
@@ -276,8 +337,8 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
               </div>
             )}
 
-            {/* Deal Value (conditional) */}
-            {result === 'CLOSED' && (
+            {/* Deal Value (for CLOSED and DEPOSIT) */}
+            {(result === 'CLOSED' || result === 'DEPOSIT') && (
               <div>
                 <label className="text-[11px] font-semibold text-gray-400 uppercase">Deal Value</label>
                 <div className="mt-1 relative">
@@ -295,81 +356,110 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
           </div>
         </div>
 
-        {/* ── Payment Links ── */}
-        <div className="px-6 py-5 border-b border-gray-100">
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Payment Links</h3>
-          <div className="space-y-3">
-            {/* Whop link */}
-            <div className="flex items-center gap-2">
-              <div className="flex-1">
-                <label className="text-[11px] font-semibold text-gray-400 uppercase">Whop Link</label>
-                {call.whop_link ? (
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="text-sm text-gray-700 truncate flex-1">{call.whop_link}</span>
-                    <button
-                      onClick={() => copyToClipboard(call.whop_link!, 'whop')}
-                      className={`p-1.5 rounded-lg transition duration-[120ms] ${copied === 'whop' ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                    >
-                      {copied === 'whop' ? <Check className="w-3.5 h-3.5" {...iconProps} /> : <Copy className="w-3.5 h-3.5" {...iconProps} />}
-                    </button>
-                    <a href={call.whop_link} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 transition duration-[120ms]">
-                      <ExternalLink className="w-3.5 h-3.5" {...iconProps} />
-                    </a>
-                  </div>
-                ) : (
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="text-sm text-gray-300">Geen link</span>
-                    <Button size="sm" variant="secondary" onClick={() => {
-                      fetch('/api/calls', {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ id: call.id, whop_link: '__TRIGGER__' }),
-                      }).then(() => onUpdate())
-                    }}>
-                      <LinkIcon className="w-3 h-3" {...iconProps} />
-                      Generate Whop Link
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
+        {/* ── Closing Panel: First Payment + Contract ── */}
+        {showClosingPanel && (
+          <div className="px-6 py-5 border-b border-gray-100">
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">
+              <CreditCard className="w-3.5 h-3.5 inline-block mr-1.5 -mt-0.5" {...iconProps} />
+              First Payment Link
+            </h3>
 
-            {/* Stripe link */}
-            <div className="flex items-center gap-2">
-              <div className="flex-1">
-                <label className="text-[11px] font-semibold text-gray-400 uppercase">Stripe Link</label>
-                {call.stripe_link ? (
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="text-sm text-gray-700 truncate flex-1">{call.stripe_link}</span>
-                    <button
-                      onClick={() => copyToClipboard(call.stripe_link!, 'stripe')}
-                      className={`p-1.5 rounded-lg transition duration-[120ms] ${copied === 'stripe' ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+            {!payLink ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Bedrag */}
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-400 uppercase">Bedrag</label>
+                    <div className="mt-1 relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">EUR</span>
+                      <input
+                        type="number"
+                        value={payAmount}
+                        onChange={e => setPayAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                        placeholder="0"
+                        className="w-full text-sm border border-gray-200 rounded-lg pl-12 pr-3 py-2 bg-white tabular-nums focus:outline-none focus:ring-2 focus:ring-accent-700"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Provider */}
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-400 uppercase">Provider</label>
+                    <select
+                      value={payProvider}
+                      onChange={e => setPayProvider(e.target.value as PayProvider)}
+                      className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700"
                     >
-                      {copied === 'stripe' ? <Check className="w-3.5 h-3.5" {...iconProps} /> : <Copy className="w-3.5 h-3.5" {...iconProps} />}
-                    </button>
-                    <a href={call.stripe_link} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 transition duration-[120ms]">
-                      <ExternalLink className="w-3.5 h-3.5" {...iconProps} />
-                    </a>
+                      <option value="MANUAL">Handmatig (screenshot)</option>
+                      <option value="STRIPE">Stripe</option>
+                      <option value="WHOP">Whop</option>
+                    </select>
                   </div>
-                ) : (
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="text-sm text-gray-300">Geen link</span>
-                    <Button size="sm" variant="secondary" onClick={() => {
-                      fetch('/api/calls', {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ id: call.id, stripe_link: '__TRIGGER__' }),
-                      }).then(() => onUpdate())
-                    }}>
-                      <CreditCard className="w-3 h-3" {...iconProps} />
-                      Generate Stripe Link
-                    </Button>
+                </div>
+
+                {/* Deposit toggle */}
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isDeposit}
+                    onChange={e => setIsDeposit(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-accent-700 focus:ring-accent-700"
+                  />
+                  <span className="text-sm text-gray-600">Alleen deposit (geen contract)</span>
+                </label>
+
+                <Button
+                  onClick={createPaymentLink}
+                  disabled={payLinkCreating || !payAmount || payAmount <= 0}
+                  className="w-full"
+                >
+                  {payLinkCreating ? 'Aanmaken...' : (
+                    <><Plus className="w-4 h-4" {...iconProps} /> First payment link aanmaken</>
+                  )}
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Check className="w-4 h-4 text-emerald-600" {...iconProps} />
+                    <span className="text-sm font-medium text-emerald-800">
+                      Payment link aangemaakt
+                    </span>
                   </div>
+                  <div className="text-xs text-emerald-600 space-y-0.5">
+                    <div>Provider: {payLink.provider}</div>
+                    <div>Status: {payLink.status}</div>
+                    {payLink.is_deposit && <div>Type: Deposit (geen contract)</div>}
+                    {payLink.url && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="truncate">{payLink.url}</span>
+                        <button
+                          onClick={() => copyToClipboard(payLink.url!, 'paylink')}
+                          className={`p-1 rounded transition duration-[120ms] ${copied === 'paylink' ? 'bg-emerald-600 text-white' : 'bg-emerald-200 text-emerald-700 hover:bg-emerald-300'}`}
+                        >
+                          {copied === 'paylink' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Maak contract knop (alleen bij CLOSED, niet bij DEPOSIT) */}
+                {canCreateContract && (
+                  <Button
+                    onClick={() => setShowContractModal(true)}
+                    variant="secondary"
+                    className="w-full mt-2"
+                  >
+                    <FileText className="w-4 h-4" {...iconProps} />
+                    Maak contract
+                  </Button>
                 )}
               </div>
-            </div>
+            )}
           </div>
-        </div>
+        )}
 
         {/* ── Qualification Questions ── */}
         {call.questions && (Array.isArray(call.questions) ? call.questions.length > 0 : Object.keys(call.questions).length > 0) && (
@@ -408,6 +498,273 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
             className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition duration-[120ms]"
           >
             Sluiten
+          </button>
+        </div>
+      </div>
+
+      {/* ── Contract Modal ── */}
+      {showContractModal && payLink && (
+        <ContractModal
+          call={call}
+          accountId={payLink.account_id}
+          firstPaymentId={payLink.incoming_payment_id}
+          firstPaymentAmount={Number(payAmount) || 0}
+          dealValue={Number(dealValue) || 0}
+          onClose={() => setShowContractModal(false)}
+          onCreated={() => {
+            setShowContractModal(false)
+            onUpdate()
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+/* ── Contract Modal ── */
+
+function ContractModal({ call, accountId, firstPaymentId, firstPaymentAmount, dealValue, onClose, onCreated }: {
+  call: Call
+  accountId: string
+  firstPaymentId: string
+  firstPaymentAmount: number
+  dealValue: number
+  onClose: () => void
+  onCreated: () => void
+}) {
+  const [signerName, setSignerName] = useState(call.name || '')
+  const [signerEmail, setSignerEmail] = useState(call.email || '')
+  const [signerMobile, setSignerMobile] = useState(call.phone || '')
+  const [numInstallments, setNumInstallments] = useState(3)
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState('')
+
+  const remaining = dealValue - firstPaymentAmount
+  const perInstallment = numInstallments > 0 ? Math.round((remaining / numInstallments) * 100) / 100 : 0
+
+  // Generate initial schedule
+  const initialSchedule = useMemo(() => {
+    const rows: ScheduleRow[] = []
+    const today = new Date()
+    for (let i = 0; i < numInstallments; i++) {
+      const date = new Date(today)
+      date.setMonth(date.getMonth() + i + 1)
+      rows.push({
+        amount: i === numInstallments - 1
+          ? Math.round((remaining - perInstallment * (numInstallments - 1)) * 100) / 100
+          : perInstallment,
+        due_date: date.toISOString().split('T')[0],
+      })
+    }
+    return rows
+  }, [numInstallments, remaining, perInstallment])
+
+  const [schedule, setSchedule] = useState<ScheduleRow[]>(initialSchedule)
+
+  // Re-generate schedule when numInstallments changes
+  useEffect(() => {
+    setSchedule(initialSchedule)
+  }, [initialSchedule])
+
+  const updateScheduleRow = (index: number, field: keyof ScheduleRow, value: string | number) => {
+    setSchedule(prev => prev.map((row, i) =>
+      i === index ? { ...row, [field]: value } : row
+    ))
+  }
+
+  const totalScheduled = schedule.reduce((sum, r) => sum + Number(r.amount), 0) + firstPaymentAmount
+
+  const handleCreate = async () => {
+    if (!signerName || !signerEmail) {
+      setError('Naam en e-mail zijn verplicht')
+      return
+    }
+    setCreating(true)
+    setError('')
+    try {
+      const res = await fetch('/api/finance-contracts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          call_id: call.id,
+          account_id: accountId,
+          deal_value: dealValue,
+          first_payment_id: firstPaymentId,
+          number_of_installments: numInstallments,
+          schedule,
+          signer_name: signerName,
+          signer_email: signerEmail,
+          signer_mobile: signerMobile || undefined,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        setError(data.error || 'Contract aanmaken mislukt')
+        return
+      }
+      onCreated()
+    } catch {
+      setError('Netwerkfout bij aanmaken contract')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="text-base font-semibold text-gray-900">
+            <FileText className="w-4 h-4 inline-block mr-1.5 -mt-0.5" {...iconProps} />
+            Contract aanmaken
+          </h3>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 transition duration-[120ms]">
+            <X className="w-4 h-4 text-gray-400" {...iconProps} />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          {/* Signer info */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] font-semibold text-gray-400 uppercase">Naam</label>
+              <input
+                type="text"
+                value={signerName}
+                onChange={e => setSignerName(e.target.value)}
+                className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold text-gray-400 uppercase">E-mail</label>
+              <input
+                type="email"
+                value={signerEmail}
+                onChange={e => setSignerEmail(e.target.value)}
+                className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-[11px] font-semibold text-gray-400 uppercase">Telefoon (optioneel)</label>
+            <input
+              type="text"
+              value={signerMobile}
+              onChange={e => setSignerMobile(e.target.value)}
+              className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700"
+            />
+          </div>
+
+          {/* Summary */}
+          <div className="bg-gray-50 rounded-lg px-4 py-3 text-sm space-y-1">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Deal value</span>
+              <span className="font-medium tabular-nums">EUR {dealValue.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">First payment</span>
+              <span className="font-medium tabular-nums">EUR {firstPaymentAmount.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between border-t border-gray-200 pt-1 mt-1">
+              <span className="text-gray-500">Resterend</span>
+              <span className="font-semibold tabular-nums">EUR {remaining.toFixed(2)}</span>
+            </div>
+          </div>
+
+          {/* Aantal termijnen */}
+          <div>
+            <label className="text-[11px] font-semibold text-gray-400 uppercase">Aantal termijnen</label>
+            <input
+              type="number"
+              min={1}
+              max={24}
+              value={numInstallments}
+              onChange={e => setNumInstallments(Math.max(1, Number(e.target.value)))}
+              className="mt-1 w-24 text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white tabular-nums focus:outline-none focus:ring-2 focus:ring-accent-700"
+            />
+          </div>
+
+          {/* Schedule table */}
+          <div>
+            <label className="text-[11px] font-semibold text-gray-400 uppercase mb-2 block">Betalingsschema</label>
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 text-[11px] text-gray-400 uppercase">
+                    <th className="px-3 py-2 text-left font-semibold">#</th>
+                    <th className="px-3 py-2 text-left font-semibold">Bedrag</th>
+                    <th className="px-3 py-2 text-left font-semibold">Datum</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* First payment row (read-only) */}
+                  <tr className="border-t border-gray-100 bg-emerald-50/50">
+                    <td className="px-3 py-2 text-gray-400">1</td>
+                    <td className="px-3 py-2 tabular-nums text-gray-600">EUR {firstPaymentAmount.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-gray-400 text-xs">First payment</td>
+                  </tr>
+                  {schedule.map((row, i) => (
+                    <tr key={i} className="border-t border-gray-100">
+                      <td className="px-3 py-2 text-gray-400">{i + 2}</td>
+                      <td className="px-3 py-1.5">
+                        <input
+                          type="number"
+                          value={row.amount}
+                          onChange={e => updateScheduleRow(i, 'amount', Number(e.target.value))}
+                          className="w-24 text-sm border border-gray-200 rounded px-2 py-1 tabular-nums focus:outline-none focus:ring-1 focus:ring-accent-700"
+                        />
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <input
+                          type="date"
+                          value={row.due_date}
+                          onChange={e => updateScheduleRow(i, 'due_date', e.target.value)}
+                          className="text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent-700"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-gray-200 bg-gray-50">
+                    <td className="px-3 py-2 font-semibold text-gray-500">Totaal</td>
+                    <td className="px-3 py-2 font-semibold tabular-nums" colSpan={2}>
+                      <span className={totalScheduled !== dealValue ? 'text-red-600' : 'text-gray-900'}>
+                        EUR {totalScheduled.toFixed(2)}
+                      </span>
+                      {totalScheduled !== dealValue && (
+                        <span className="text-xs text-red-500 ml-2">
+                          (verschil: EUR {(totalScheduled - dealValue).toFixed(2)})
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          {error && (
+            <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+              {error}
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+          <Button
+            onClick={handleCreate}
+            disabled={creating}
+            className="flex-1"
+          >
+            {creating ? 'Aanmaken...' : 'Contract aanmaken + versturen'}
+          </Button>
+          <button
+            onClick={onClose}
+            className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition duration-[120ms]"
+          >
+            Annuleren
           </button>
         </div>
       </div>
