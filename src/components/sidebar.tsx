@@ -6,7 +6,8 @@ import {
   BarChart3, Users, Target, DollarSign, GraduationCap,
   Megaphone, ClipboardCheck, Menu, X, LayoutDashboard,
   Columns3, ListChecks, FileEdit, ChevronDown, BookOpen,
-  Phone, Kanban, CalendarDays, CreditCard, Handshake, Calendar
+  Phone, Kanban, CalendarDays, CreditCard, Handshake, Calendar,
+  ClipboardList
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
@@ -42,6 +43,17 @@ const nav: NavItem[] = [
   },
   { href: '/finance', label: 'Finance', icon: DollarSign, roles: ['ADMIN', 'FINANCE'] },
   {
+    href: '/eod', label: 'EOD', icon: ClipboardList, roles: ['ADMIN', 'SETTER', 'CLOSER', 'FINANCE'],
+    children: [
+      { href: '/eod', label: 'Overview', icon: LayoutDashboard, roles: ['ADMIN'] },
+      { href: '/eod/setter', label: 'Setter', icon: Target, roles: ['ADMIN', 'SETTER'] },
+      { href: '/eod/closer', label: 'Closer', icon: Phone, roles: ['ADMIN', 'CLOSER'] },
+      { href: '/eod/finance', label: 'Finance', icon: DollarSign, roles: ['ADMIN', 'FINANCE'] },
+      { href: '/eod/partner-manager', label: 'Partner Manager', icon: Handshake, roles: ['ADMIN'] },
+      { href: '/eod/creator', label: 'Creator', icon: Megaphone, roles: ['ADMIN'] },
+    ],
+  },
+  {
     href: '/delivery', label: 'Delivery', icon: GraduationCap, roles: ['ADMIN', 'COACH'],
     children: [
       { href: '/delivery', label: 'Overview', icon: LayoutDashboard },
@@ -62,6 +74,7 @@ export function Sidebar() {
     '/delivery': pathname.startsWith('/delivery'),
     '/sales': pathname.startsWith('/sales'),
     '/leads': pathname.startsWith('/leads'),
+    '/eod': pathname.startsWith('/eod'),
   })
   const [userRole, setUserRole] = useState<UserRole | null>(null)
 
@@ -127,7 +140,7 @@ export function Sidebar() {
                   </button>
                   {expanded[item.href] && (
                     <div className="ml-[18px] mt-0.5 space-y-0.5 border-l border-gray-100 pl-2.5">
-                      {item.children!.map((child) => {
+                      {item.children!.filter(c => !c.roles || !userRole || c.roles.includes(userRole)).map((child) => {
                         const ChildIcon = child.icon
                         const childActive = pathname === child.href
                         return (
