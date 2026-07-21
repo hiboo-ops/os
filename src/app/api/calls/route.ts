@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser, requireRole } from '@/lib/auth'
+import { sendSlackNotification } from '@/lib/slack'
 
 export async function GET(req: NextRequest) {
   const user = await getAuthUser()
@@ -160,6 +161,21 @@ export async function PATCH(req: NextRequest) {
         await supabase.from('leads').update({ stage: newLeadStage }).eq('id', lead.id)
       }
     }
+  }
+
+  // Slack-notificatie: deal gesloten
+  if (safeUpdates.result === 'CLOSED' || safeUpdates.result === 'DEPOSIT') {
+    try {
+      const { data: callData } = await supabase.from('calls').select('name, deal_value').eq('id', id).single()
+      const naam = callData?.name || id
+      const bedrag = safeUpdates.deal_value ?? callData?.deal_value ?? '?'
+      await sendSlackNotification(`Deal gesloten: ${naam} — €${bedrag}`, [
+        {
+          type: 'section',
+          text: { type: 'mrkdwn', text: `*Deal gesloten*\n*Naam:* ${naam}\n*Bedrag:* €${bedrag}\n*Status:* ${safeUpdates.result}` },
+        },
+      ])
+    } catch { /* Slack mag nooit crashen */ }
   }
 
   return NextResponse.json({ success: true })

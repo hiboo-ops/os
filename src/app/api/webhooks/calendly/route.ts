@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+import { sendSlackNotification } from '@/lib/slack'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -214,6 +215,17 @@ async function handleInviteeCreated(p: Record<string, any>) {
   if (call && leadId) {
     await supabase.from('leads').update({ call_id: call.id }).eq('id', leadId)
   }
+
+  // Slack-notificatie: closing call geboekt
+  try {
+    const closerLabel = memberships[0]?.user_email || 'onbekend'
+    await sendSlackNotification(`Closing call geboekt: ${name} met ${closerLabel}`, [
+      {
+        type: 'section',
+        text: { type: 'mrkdwn', text: `*Closing call geboekt*\n*Lead:* ${name}\n*Closer:* ${closerLabel}\n*Datum:* ${startTime || 'onbekend'}` },
+      },
+    ])
+  } catch { /* Slack mag nooit crashen */ }
 }
 
 async function handleInviteeCanceled(p: Record<string, any>) {
