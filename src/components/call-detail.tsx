@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatDate } from '@/lib/format'
@@ -523,7 +523,13 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
 
 /* ── Contract Modal ── */
 
-function ContractModal({ call, accountId, firstPaymentId, firstPaymentAmount, dealValue, onClose, onCreated }: {
+interface PackageOption {
+  id: string
+  name: string
+  price: number
+}
+
+function ContractModal({ call, accountId, firstPaymentId, firstPaymentAmount, dealValue: initialDealValue, onClose, onCreated }: {
   call: Call
   accountId: string
   firstPaymentId: string
@@ -538,6 +544,27 @@ function ContractModal({ call, accountId, firstPaymentId, firstPaymentAmount, de
   const [numInstallments, setNumInstallments] = useState(3)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
+
+  // Pakketten
+  const [packages, setPackages] = useState<PackageOption[]>([])
+  const [selectedPackageId, setSelectedPackageId] = useState<string>('')
+  const [dealValue, setDealValue] = useState(initialDealValue)
+
+  const loadPackages = useCallback(async () => {
+    const res = await fetch('/api/packages').then(r => r.json()).catch(() => [])
+    const active = (Array.isArray(res) ? res : []).filter((p: PackageOption & { active?: boolean }) => p.active !== false)
+    setPackages(active)
+  }, [])
+
+  useEffect(() => { loadPackages() }, [loadPackages])
+
+  const handlePackageChange = (pkgId: string) => {
+    setSelectedPackageId(pkgId)
+    if (pkgId) {
+      const pkg = packages.find(p => p.id === pkgId)
+      if (pkg) setDealValue(Number(pkg.price))
+    }
+  }
 
   const remaining = dealValue - firstPaymentAmount
   const perInstallment = numInstallments > 0 ? Math.round((remaining / numInstallments) * 100) / 100 : 0
@@ -595,6 +622,7 @@ function ContractModal({ call, accountId, firstPaymentId, firstPaymentAmount, de
           signer_name: signerName,
           signer_email: signerEmail,
           signer_mobile: signerMobile || undefined,
+          package_id: selectedPackageId || undefined,
         }),
       })
       if (!res.ok) {
@@ -654,6 +682,39 @@ function ContractModal({ call, accountId, firstPaymentId, firstPaymentAmount, de
               onChange={e => setSignerMobile(e.target.value)}
               className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700"
             />
+          </div>
+
+          {/* Pakket selectie */}
+          {packages.length > 0 && (
+            <div>
+              <label className="text-[11px] font-semibold text-gray-400 uppercase">Pakket</label>
+              <select
+                value={selectedPackageId}
+                onChange={e => handlePackageChange(e.target.value)}
+                className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700"
+              >
+                <option value="">— Geen pakket —</option>
+                {packages.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} — EUR {Number(p.price).toFixed(2)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Deal value (editable) */}
+          <div>
+            <label className="text-[11px] font-semibold text-gray-400 uppercase">Deal value</label>
+            <div className="mt-1 relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">EUR</span>
+              <input
+                type="number"
+                value={dealValue}
+                onChange={e => setDealValue(e.target.value === '' ? 0 : Number(e.target.value))}
+                className="w-full text-sm border border-gray-200 rounded-lg pl-12 pr-3 py-2 bg-white tabular-nums focus:outline-none focus:ring-2 focus:ring-accent-700"
+              />
+            </div>
           </div>
 
           {/* Summary */}
