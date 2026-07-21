@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import { validateTwilioRequest, twimlResponse, emptyTwiml } from '@/lib/twilio'
+import { logApiEvent } from '@/lib/api-log'
 
 // Lifecycle-callbacks van de lead-poot (<Number statusCallback>).
 // CallSid = child leg, ParentCallSid = browser/setter leg (= triage_calls.twilio_call_sid).
@@ -11,6 +12,15 @@ export async function POST(req: Request) {
   const parentCallSid = body.get('ParentCallSid')
   const callStatus = body.get('CallStatus')
   const duration = body.get('CallDuration')
+
+  logApiEvent({
+    direction: 'INBOUND',
+    source: 'twilio',
+    action: 'status_callback',
+    event_type: callStatus || undefined,
+    status: 'SUCCESS',
+    idempotency_key: callSid ? `twilio:status:${callSid}:${callStatus}` : undefined,
+  })
 
   if (!callSid || !callStatus) return twimlResponse(emptyTwiml)
 

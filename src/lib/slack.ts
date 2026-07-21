@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
+import { logApiEvent } from '@/lib/api-log'
 
 const WEBHOOK_NOTIFICATIONS = process.env.SLACK_WEBHOOK_NOTIFICATIONS
 const WEBHOOK_EOD = process.env.SLACK_WEBHOOK_EOD
@@ -10,14 +11,25 @@ const ENV_FALLBACKS: Record<string, string | undefined> = {
 }
 
 async function postToSlack(webhookUrl: string, body: Record<string, unknown>): Promise<void> {
+  const start = Date.now()
   try {
-    await fetch(webhookUrl, {
+    const res = await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
+    logApiEvent({
+      direction: 'OUTBOUND', source: 'slack', action: 'post_message',
+      status: res.ok ? 'SUCCESS' : 'FAILED',
+      http_status: res.status, duration_ms: Date.now() - start,
+    })
   } catch (err) {
     console.error('[Slack] Bericht versturen mislukt:', err)
+    logApiEvent({
+      direction: 'OUTBOUND', source: 'slack', action: 'post_message',
+      status: 'FAILED', duration_ms: Date.now() - start,
+      error: err instanceof Error ? err.message : String(err),
+    })
   }
 }
 

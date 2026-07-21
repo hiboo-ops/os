@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
+import { withApiLog } from '@/lib/api-log'
 
 const MIN_DURATION_SECONDS = 10
 
@@ -18,49 +19,62 @@ async function logError(step: string, error: unknown, callSid: string) {
 }
 
 async function downloadRecording(recordingUrl: string): Promise<Blob> {
-  const auth = Buffer.from(
-    `${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`
-  ).toString('base64')
-  const res = await fetch(`${recordingUrl}.mp3`, {
-    headers: { Authorization: `Basic ${auth}` },
-  })
-  if (!res.ok) throw new Error(`Opname downloaden mislukt: ${res.status}`)
-  return await res.blob()
+  return withApiLog(
+    { direction: 'OUTBOUND', source: 'twilio', action: 'download_recording' },
+    async () => {
+      const auth = Buffer.from(
+        `${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`
+      ).toString('base64')
+      const res = await fetch(`${recordingUrl}.mp3`, {
+        headers: { Authorization: `Basic ${auth}` },
+      })
+      if (!res.ok) throw new Error(`Opname downloaden mislukt: ${res.status}`)
+      return await res.blob()
+    },
+  )
 }
 
 async function transcribeWithWhisper(audio: Blob): Promise<string> {
-  const form = new FormData()
-  form.append('file', audio, 'recording.mp3')
-  form.append('model', 'whisper-1')
-  form.append('language', 'nl')
-  const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-    body: form,
-  })
-  if (!res.ok) throw new Error(`Whisper mislukt: ${res.status} ${await res.text()}`)
-  const data = await res.json()
-  return data.text || ''
+  return withApiLog(
+    { direction: 'OUTBOUND', source: 'openai', action: 'whisper_transcription' },
+    async () => {
+      const form = new FormData()
+      form.append('file', audio, 'recording.mp3')
+      form.append('model', 'whisper-1')
+      form.append('language', 'nl')
+      const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+        body: form,
+      })
+      if (!res.ok) throw new Error(`Whisper mislukt: ${res.status} ${await res.text()}`)
+      const data = await res.json()
+      return data.text || ''
+    },
+  )
 }
 
 async function summarizeWithClaude(transcript: string, leadName: string): Promise<SummaryResult> {
   const anthropic = new Anthropic()
-  const response = await anthropic.messages.create({
-    model: 'claude-haiku-4-5',
-    max_tokens: 1024,
-    system:
-      'Je bent een assistent voor een Nederlands sales-triageteam. Je vat telefoongesprekken met leads kort en zakelijk samen in het Nederlands. Antwoord uitsluitend met geldige JSON, zonder markdown.',
-    messages: [
-      {
-        role: 'user',
-        content:
-          `Transcript van een triagegesprek met lead "${leadName}":\n\n${transcript}\n\n` +
-          `Geef JSON in dit formaat: {"samenvatting": "3-5 zinnen over het gesprek", ` +
-          `"uitkomst": een van "FOLLOW UP" | "CLOSING CALL BOOKED" | "LOST - NO INTEREST" | "LOST - BROKE" | "VOICEMAIL" | "ONDUIDELIJK", ` +
-          `"actiepunten": ["korte actiepunten voor de setter"]}`,
-      },
-    ],
-  })
+  const response = await withApiLog(
+    { direction: 'OUTBOUND', source: 'anthropic', action: 'claude_summary' },
+    async () => anthropic.messages.create({
+      model: 'claude-haiku-4-5',
+      max_tokens: 1024,
+      system:
+        'Je bent een assistent voor een Nederlands sales-triageteam. Je vat telefoongesprekken met leads kort en zakelijk samen in het Nederlands. Antwoord uitsluitend met geldige JSON, zonder markdown.',
+      messages: [
+        {
+          role: 'user',
+          content:
+            `Transcript van een triagegesprek met lead "${leadName}":\n\n${transcript}\n\n` +
+            `Geef JSON in dit formaat: {"samenvatting": "3-5 zinnen over het gesprek", ` +
+            `"uitkomst": een van "FOLLOW UP" | "CLOSING CALL BOOKED" | "LOST - NO INTEREST" | "LOST - BROKE" | "VOICEMAIL" | "ONDUIDELIJK", ` +
+            `"actiepunten": ["korte actiepunten voor de setter"]}`,
+        },
+      ],
+    }),
+  )
 
   const block = response.content[0]
   const text = block.type === 'text' ? block.text : ''

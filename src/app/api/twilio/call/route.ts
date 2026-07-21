@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAuthUser, requireRole } from '@/lib/auth'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import { getTwilioClient, twilioCallerId, appUrl } from '@/lib/twilio'
+import { withApiLog } from '@/lib/api-log'
 
 // Mobiele fallback: Twilio belt eerst de setter op mobiel; na opnemen draait
 // /api/twilio/voice dezelfde TwiML en wordt de lead verbonden.
@@ -23,12 +24,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Stel eerst je mobiele nummer in bij Belvoorkeuren' }, { status: 400 })
   }
 
-  const call = await getTwilioClient().calls.create({
-    to: member.mobile_phone,
-    from: twilioCallerId(),
-    url: appUrl('/api/twilio/voice'),
-    method: 'POST',
-  })
+  const call = await withApiLog(
+    { direction: 'OUTBOUND', source: 'twilio', action: 'create_call' },
+    async () => getTwilioClient().calls.create({
+      to: member.mobile_phone,
+      from: twilioCallerId(),
+      url: appUrl('/api/twilio/voice'),
+      method: 'POST',
+    }),
+  )
 
   // Twilio geeft geen custom params door bij REST-calls; /voice zoekt deze rij
   // op via CallSid (met retry voor de race met de webhook).

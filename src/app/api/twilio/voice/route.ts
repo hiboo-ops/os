@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import { validateTwilioRequest, twimlResponse, appUrl, twilioCallerId, emptyTwiml } from '@/lib/twilio'
+import { logApiEvent } from '@/lib/api-log'
 
 const SLA_MINUTES = 5
 
@@ -41,6 +42,15 @@ function dialTwiml(to: string) {
 export async function POST(req: Request) {
   const body = await validateTwilioRequest(req, '/api/twilio/voice')
   if (!body) return new Response('Forbidden', { status: 403 })
+
+  logApiEvent({
+    direction: 'INBOUND',
+    source: 'twilio',
+    action: 'voice',
+    event_type: 'twiml_request',
+    status: 'SUCCESS',
+    idempotency_key: body.get('CallSid') ? `twilio:voice:${body.get('CallSid')}` : undefined,
+  })
 
   const callSid = body.get('CallSid')
   if (!callSid) return twimlResponse(emptyTwiml)

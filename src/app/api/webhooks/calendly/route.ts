@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { sendSlackNotification } from '@/lib/slack'
+import { logApiEvent } from '@/lib/api-log'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -11,6 +12,16 @@ export async function POST(req: NextRequest) {
   await supabase.from('webhook_logs').insert({
     source: 'calendly',
     event: body.event || 'unknown',
+    payload: body,
+  })
+
+  logApiEvent({
+    direction: 'INBOUND',
+    source: 'calendly',
+    action: 'webhook',
+    event_type: body.event,
+    status: 'PENDING',
+    idempotency_key: body.payload?.uri ? `calendly:${body.payload.uri}:${body.event}` : undefined,
     payload: body,
   })
 
@@ -27,8 +38,28 @@ export async function POST(req: NextRequest) {
     } else if (event === 'invitee.canceled') {
       await handleInviteeCanceled(payload)
     }
+
+    logApiEvent({
+      direction: 'INBOUND',
+      source: 'calendly',
+      action: 'webhook',
+      event_type: event,
+      status: 'SUCCESS',
+      idempotency_key: body.payload?.uri ? `calendly:${body.payload.uri}:${body.event}` : undefined,
+    })
+
     return NextResponse.json({ success: true })
   } catch (err) {
+    logApiEvent({
+      direction: 'INBOUND',
+      source: 'calendly',
+      action: 'webhook',
+      event_type: event,
+      status: 'FAILED',
+      idempotency_key: body.payload?.uri ? `calendly:${body.payload.uri}:${body.event}` : undefined,
+      error: err instanceof Error ? err.message : String(err),
+    })
+
     await supabase.from('webhook_logs').insert({
       source: 'calendly-error',
       event,

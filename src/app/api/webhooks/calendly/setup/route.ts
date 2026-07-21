@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser, requireRole } from '@/lib/auth'
+import { withApiLog } from '@/lib/api-log'
 
 /**
  * Registers Calendly webhook subscription using server-side PAT from env var.
@@ -24,7 +25,10 @@ export async function POST(req: NextRequest) {
   }
 
   // 1. Get current user to find organization URI
-  const userRes = await fetch(`${CALENDLY_API}/users/me`, { headers })
+  const userRes = await withApiLog(
+    { direction: 'OUTBOUND', source: 'calendly', action: 'get_user' },
+    () => fetch(`${CALENDLY_API}/users/me`, { headers }),
+  )
   if (!userRes.ok) {
     const err = await userRes.text()
     return NextResponse.json({ error: `Calendly auth failed: ${err}` }, { status: 400 })
@@ -42,7 +46,10 @@ export async function POST(req: NextRequest) {
   const callbackUrl = `${protocol}://${host}/api/webhooks/calendly`
 
   // 3. Check if webhook already exists
-  const listRes = await fetch(`${CALENDLY_API}/webhook_subscriptions?organization=${encodeURIComponent(orgUri)}&scope=organization`, { headers })
+  const listRes = await withApiLog(
+    { direction: 'OUTBOUND', source: 'calendly', action: 'list_webhooks' },
+    () => fetch(`${CALENDLY_API}/webhook_subscriptions?organization=${encodeURIComponent(orgUri)}&scope=organization`, { headers }),
+  )
   if (listRes.ok) {
     const listData = await listRes.json()
     const existing = listData.collection?.find((w: Record<string, unknown>) => w.callback_url === callbackUrl)
@@ -57,16 +64,19 @@ export async function POST(req: NextRequest) {
   }
 
   // 4. Create webhook subscription
-  const createRes = await fetch(`${CALENDLY_API}/webhook_subscriptions`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      url: callbackUrl,
-      events: ['invitee.created', 'invitee.canceled'],
-      organization: orgUri,
-      scope: 'organization',
+  const createRes = await withApiLog(
+    { direction: 'OUTBOUND', source: 'calendly', action: 'create_webhook' },
+    () => fetch(`${CALENDLY_API}/webhook_subscriptions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        url: callbackUrl,
+        events: ['invitee.created', 'invitee.canceled'],
+        organization: orgUri,
+        scope: 'organization',
+      }),
     }),
-  })
+  )
 
   if (!createRes.ok) {
     const err = await createRes.text()

@@ -2,6 +2,7 @@ import { waitUntil } from '@vercel/functions'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import { validateTwilioRequest, twimlResponse, emptyTwiml } from '@/lib/twilio'
 import { transcribeAndSummarize } from '@/lib/transcription'
+import { logApiEvent } from '@/lib/api-log'
 
 export const maxDuration = 300
 
@@ -15,6 +16,14 @@ export async function POST(req: Request) {
   const recordingSid = body.get('RecordingSid')
   const recordingUrl = body.get('RecordingUrl')
   const duration = Number(body.get('RecordingDuration') || 0)
+
+  logApiEvent({
+    direction: 'INBOUND',
+    source: 'twilio',
+    action: 'recording_callback',
+    status: 'SUCCESS',
+    idempotency_key: recordingSid ? `twilio:recording:${recordingSid}` : undefined,
+  })
 
   if (!callSid || !recordingSid || !recordingUrl) return twimlResponse(emptyTwiml)
 
