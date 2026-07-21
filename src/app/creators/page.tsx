@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { KpiCard } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { SkeletonPage } from '@/components/ui/skeleton'
@@ -9,6 +10,7 @@ import { formatDate, eur } from '@/lib/format'
 import { Users, TrendingUp, CreditCard, Target } from 'lucide-react'
 
 export default function CreatorsPage() {
+  const router = useRouter()
   const [creators, setCreators] = useState<Creator[]>([])
   const [leadCounts, setLeadCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
@@ -30,11 +32,12 @@ export default function CreatorsPage() {
   const totalSetupFees = creators.reduce((sum, c) => sum + (c.setup_fee || 0), 0)
   const totalLeads = Object.values(leadCounts).reduce((a, b) => a + b, 0)
 
-  const formatSocials = (socials: Record<string, string> | null) => {
+  const formatSocials = (socials: Creator['socials']) => {
     if (!socials || Object.keys(socials).length === 0) return '—'
     return Object.entries(socials)
-      .map(([platform, handle]) => `${platform}: ${handle}`)
-      .join(', ')
+      .filter(([, s]) => s?.handle)
+      .map(([platform, s]) => `${platform}: ${s.handle}`)
+      .join(', ') || '—'
   }
 
   return (
@@ -72,7 +75,7 @@ export default function CreatorsPage() {
             </thead>
             <tbody>
               {creators.map(creator => (
-                <tr key={creator.id} className="border-b border-gray-50 hover:bg-gray-50 transition">
+                <tr key={creator.id} onClick={() => router.push(`/creators/${creator.id}`)} className="border-b border-gray-50 hover:bg-gray-50 transition cursor-pointer">
                   <td className="px-6 py-3">
                     <div>
                       <div className="font-medium text-gray-900">{creator.name}</div>
