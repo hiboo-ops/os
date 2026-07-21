@@ -11,6 +11,7 @@ interface CreateContractInput {
     mobile?: string
   }
   placeholderFields: Record<string, string>
+  templateId?: string
 }
 
 interface EsignResponse {
@@ -28,7 +29,7 @@ export async function createEsignContract(input: CreateContractInput): Promise<{
   esign_status: string
 } | null> {
   const token = process.env.ESIGNATURES_SECRET_TOKEN
-  const templateId = process.env.ESIGNATURES_TEMPLATE_ID
+  const templateId = input.templateId || process.env.ESIGNATURES_TEMPLATE_ID
 
   if (!token || !templateId) {
     console.log('[esignatures] Geen token/template_id — overslaan')
