@@ -68,6 +68,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'First payment niet gevonden' }, { status: 404 })
   }
 
+  // Idempotency: als deze first payment al aan een contract hangt, niet opnieuw aanmaken
+  if (firstPayment.contract_id) {
+    return NextResponse.json(
+      { contract_id: firstPayment.contract_id, already_exists: true },
+      { status: 200 },
+    )
+  }
+
   // 1. Contract aanmaken
   const paymentPlanSummary = `${number_of_installments} termijnen`
   const { data: contract, error: contractErr } = await admin

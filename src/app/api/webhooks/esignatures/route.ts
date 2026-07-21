@@ -39,7 +39,10 @@ export async function POST(req: NextRequest) {
     .update(body)
     .digest('hex')
 
-  if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+  const sigBuf = Buffer.from(signature)
+  const expBuf = Buffer.from(expectedSignature)
+  // timingSafeEqual gooit bij ongelijke lengte — vang dat af als een nette 401
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
     return NextResponse.json({ error: 'Ongeldige signature' }, { status: 401 })
   }
 
