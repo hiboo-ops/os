@@ -17,6 +17,7 @@ interface AccountRow {
   email: string | null
   status: string
   ltv: number
+  open_amount: number
   source: string | null
   creator: { id: string; name: string } | null
   setter: { id: string; name: string } | null
@@ -83,11 +84,12 @@ export default function AccountsPage() {
 
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         {/* Table header */}
-        <div className="grid grid-cols-[1fr_1fr_100px_100px_120px_100px] gap-4 px-5 py-3 border-b border-gray-100 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+        <div className="grid grid-cols-[1.2fr_1.2fr_90px_100px_110px_110px_100px] gap-4 px-5 py-3 border-b border-gray-100 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
           <div>Naam</div>
           <div>Email</div>
           <div>Status</div>
           <div className="text-right">LTV</div>
+          <div className="text-right">Openstaand</div>
           <div>Closer</div>
           <div>Source</div>
         </div>
@@ -104,13 +106,16 @@ export default function AccountsPage() {
             <Link
               key={acc.id}
               href={`/finance/accounts/${acc.id}`}
-              className="grid grid-cols-[1fr_1fr_100px_100px_120px_100px] gap-4 px-5 py-3.5 border-b border-gray-50 items-center hover:bg-gray-50 transition-colors duration-[120ms]"
+              className="grid grid-cols-[1.2fr_1.2fr_90px_100px_110px_110px_100px] gap-4 px-5 py-3.5 border-b border-gray-50 items-center hover:bg-gray-50 transition-colors duration-[120ms]"
             >
               <div className="text-sm font-medium text-gray-900 truncate">{acc.name}</div>
               <div className="text-sm text-gray-500 truncate">{acc.email || '—'}</div>
               <div><Badge status={acc.status} /></div>
               <div className="text-sm text-right tabular-nums font-medium text-gray-900">
                 {eur(acc.ltv)}
+              </div>
+              <div className={`text-sm text-right tabular-nums font-medium ${acc.open_amount > 0 ? 'text-amber-600' : 'text-gray-300'}`}>
+                {acc.open_amount > 0 ? eur(acc.open_amount) : '—'}
               </div>
               <div className="text-sm text-gray-700 truncate">{acc.closer?.name || '—'}</div>
               <div>{acc.source ? <Badge status={acc.source} /> : <span className="text-xs text-gray-300">—</span>}</div>

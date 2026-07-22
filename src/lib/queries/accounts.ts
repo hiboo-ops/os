@@ -100,11 +100,75 @@ export async function getAccountsList(opts: {
   const { data, count, error } = await query
   if (error) throw error
 
+  const accounts = (data || []) as unknown as AccountWithRelations[]
+
+  // Openstaand bedrag per account (som van niet-betaalde termijnen)
+  const ids = accounts.map((a) => a.id)
+  const openByAccount: Record<string, number> = {}
+  if (ids.length > 0) {
+    const { data: ips } = await admin
+      .from('incoming_payments')
+      .select('account_id, amount, status')
+      .in('account_id', ids)
+      .not('status', 'in', '("PAID","REFUNDED")')
+    for (const row of ips || []) {
+      const r = row as { account_id: string; amount: number | null }
+      openByAccount[r.account_id] = (openByAccount[r.account_id] || 0) + (r.amount || 0)
+    }
+  }
+
   return {
-    accounts: (data || []) as unknown as AccountWithRelations[],
+    accounts: accounts.map((a) => ({ ...a, open_amount: openByAccount[a.id] || 0 })),
     total: count || 0,
     page,
     pageSize,
+  }
+}
+
+/**
+ * KPI's voor het finance-overzicht, op basis van het accounts-model.
+ */
+export async function getFinanceOverview() {
+  const admin = getSupabaseAdmin()
+  const now = new Date()
+  const today = now.toISOString().slice(0, 10)
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    .toISOString()
+    .slice(0, 10)
+
+  // Openstaande termijnen
+  const { data: open } = await admin
+    .from('incoming_payments')
+    .select('amount, due_date, status')
+    .not('status', 'in', '("PAID","REFUNDED")')
+
+  let totalOpen = 0, openCount = 0, lateCount = 0, lateAmount = 0, upcomingAmount = 0
+  for (const row of open || []) {
+    const ip = row as { amount: number | null; due_date: string | null }
+    const amt = ip.amount || 0
+    totalOpen += amt
+    openCount++
+    if (ip.due_date && ip.due_date < today) {
+      lateCount++
+      lateAmount += amt
+    } else if (ip.due_date && ip.due_date >= today && ip.due_date <= endOfMonth) {
+      upcomingAmount += amt
+    }
+  }
+
+  // Cash collected (echte betalingen, exclusief legacy)
+  const { data: paid } = await admin.from('payments').select('amount, paid, legacy')
+  const cashCollected = (paid || [])
+    .filter((p) => (p as { paid: boolean; legacy: boolean }).paid && !(p as { legacy: boolean }).legacy)
+    .reduce((s, p) => s + ((p as { amount: number | null }).amount || 0), 0)
+
+  const { count: accountsCount } = await admin
+    .from('accounts')
+    .select('id', { count: 'exact', head: true })
+
+  return {
+    totalOpen, openCount, lateCount, lateAmount, upcomingAmount,
+    cashCollected, accountsCount: accountsCount || 0,
   }
 }
 
