@@ -42,7 +42,7 @@ const nav: NavItem[] = [
     ],
   },
   {
-    href: '/sales/pipeline', label: 'Setting', icon: ListChecks, roles: ['SETTER'],
+    href: '/sales/pipeline', label: 'Setting', icon: ListChecks, roles: ['ADMIN', 'SETTER'],
     children: [
       { href: '/sales/pipeline', label: 'Booked calls', icon: Kanban },
       { href: '/eod/setter/dashboard', label: 'EOD dashboard', icon: BarChart3 },
