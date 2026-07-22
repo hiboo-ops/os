@@ -128,8 +128,10 @@ export interface SetterBenchmark {
     nieuwe_outbounds: number
     follow_ups: number
     replies_outbound: number
+    inbound_gesprekken: number
     positieve_reacties: number
     leads_gekwalificeerd: number
+    calls_voorgesteld: number
     calls_geboekt: number
     calendly_links_gestuurd: number
   }
@@ -157,8 +159,10 @@ export async function getSetterTeamBenchmark(
     nieuwe_outbounds: 0,
     follow_ups: 0,
     replies_outbound: 0,
+    inbound_gesprekken: 0,
     positieve_reacties: 0,
     leads_gekwalificeerd: 0,
+    calls_voorgesteld: 0,
     calls_geboekt: 0,
     calendly_links_gestuurd: 0,
   }
@@ -168,8 +172,10 @@ export async function getSetterTeamBenchmark(
     sum.nieuwe_outbounds += numVal(a.activiteit?.nieuwe_outbounds)
     sum.follow_ups += numVal(a.activiteit?.follow_ups)
     sum.replies_outbound += numVal(a.conversies?.replies_outbound)
+    sum.inbound_gesprekken += numVal(a.conversies?.inbound_gesprekken)
     sum.positieve_reacties += numVal(a.conversies?.positieve_reacties)
     sum.leads_gekwalificeerd += numVal(a.conversies?.leads_gekwalificeerd)
+    sum.calls_voorgesteld += numVal(a.calls?.calls_voorgesteld)
     sum.calls_geboekt += numVal(a.calls?.calls_geboekt_inbound) + numVal(a.calls?.calls_geboekt_outbound)
     sum.calendly_links_gestuurd += numVal(a.calls?.calendly_links_gestuurd)
   }
@@ -183,8 +189,10 @@ export async function getSetterTeamBenchmark(
       nieuwe_outbounds: avg(sum.nieuwe_outbounds),
       follow_ups: avg(sum.follow_ups),
       replies_outbound: avg(sum.replies_outbound),
+      inbound_gesprekken: avg(sum.inbound_gesprekken),
       positieve_reacties: avg(sum.positieve_reacties),
       leads_gekwalificeerd: avg(sum.leads_gekwalificeerd),
+      calls_voorgesteld: avg(sum.calls_voorgesteld),
       calls_geboekt: avg(sum.calls_geboekt),
       calendly_links_gestuurd: avg(sum.calendly_links_gestuurd),
     },

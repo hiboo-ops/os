@@ -6,8 +6,10 @@ import { KpiCard, Card, CardHeader, CardContent } from '@/components/ui/card'
 import { DailyBarChart } from '@/components/ui/charts'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SkeletonPage } from '@/components/ui/skeleton'
-import { formatDateShort } from '@/lib/format'
-import { ClipboardList, Flame, CalendarCheck } from 'lucide-react'
+import { formatDateShort, eur } from '@/lib/format'
+import { ClipboardList, Flame, CalendarCheck, PhoneCall } from 'lucide-react'
+import { calculateMetrics } from '@/lib/queries/sales'
+import type { Call } from '@/lib/queries/sales'
 import type { EodReport } from '@/lib/queries/eod'
 import type { SetterBenchmark } from '@/lib/queries/eod'
 
@@ -61,41 +63,70 @@ const TRENDS: { key: string; label: string; get: (a: Answers) => number }[] = [
   { key: 'positief', label: 'Positieve reacties per dag', get: a => num(a.conversies?.positieve_reacties) },
 ]
 
-// Conversieratio's over de funnel: outbounds → replies → positief → gekwalificeerd → geboekt.
-// `num`/`den` indexeren de eigen totalen; `bNum`/`bDen` de team-benchmark (perDayAvg).
-type TotalKey = 'outbounds' | 'replies' | 'positief' | 'gekwalificeerd' | 'geboekt' | 'calendly'
-const CONVERSIONS: { key: string; label: string; hint: string; num: TotalKey; den: TotalKey; bNum: BenchKey; bDen: BenchKey }[] = [
-  { key: 'reply', label: 'Reply-rate', hint: 'replies ÷ outbounds', num: 'replies', den: 'outbounds', bNum: 'replies_outbound', bDen: 'nieuwe_outbounds' },
-  { key: 'positief', label: 'Positief v. replies', hint: 'positief ÷ replies', num: 'positief', den: 'replies', bNum: 'positieve_reacties', bDen: 'replies_outbound' },
-  { key: 'kwal', label: 'Kwalificatie', hint: 'gekwalificeerd ÷ positief', num: 'gekwalificeerd', den: 'positief', bNum: 'leads_gekwalificeerd', bDen: 'positieve_reacties' },
-  { key: 'boeking', label: 'Boeking v. gekwal.', hint: 'geboekt ÷ gekwalificeerd', num: 'geboekt', den: 'gekwalificeerd', bNum: 'calls_geboekt', bDen: 'leads_gekwalificeerd' },
-  { key: 'calendly', label: 'Calendly-conversie', hint: 'geboekt ÷ links', num: 'geboekt', den: 'calendly', bNum: 'calls_geboekt', bDen: 'calendly_links_gestuurd' },
-  { key: 'ob2call', label: 'Outbound → call', hint: 'geboekt ÷ outbounds', num: 'geboekt', den: 'outbounds', bNum: 'calls_geboekt', bDen: 'nieuwe_outbounds' },
+// De 8 vastgelegde conversie-metrics. `own(t)` en `bench(b)` geven elk [teller, noemer]
+// terug — eigen uit de periode-totalen, team uit perDayAvg (zelfde formule).
+type Totals = {
+  outbounds: number; replies: number; inbound: number
+  positief: number; voorgesteld: number; geboekt: number
+}
+type PerDay = SetterBenchmark['perDayAvg']
+const FUNNEL: { key: string; label: string; hint: string; own: (t: Totals) => [number, number]; bench: (b: PerDay) => [number, number] }[] = [
+  { key: 'resp_ob', label: 'Response rate op outbound', hint: 'replies ÷ outbounds',
+    own: t => [t.replies, t.outbounds], bench: b => [b.replies_outbound, b.nieuwe_outbounds] },
+  { key: 'posresp_ob', label: 'Positive response rate op outbound', hint: 'positief ÷ outbounds',
+    own: t => [t.positief, t.outbounds], bench: b => [b.positieve_reacties, b.nieuwe_outbounds] },
+  { key: 'resp_prop', label: 'Response → Call proposed', hint: 'voorgesteld ÷ replies',
+    own: t => [t.voorgesteld, t.replies], bench: b => [b.calls_voorgesteld, b.replies_outbound] },
+  { key: 'prop_booked', label: 'Call proposed → booked', hint: 'geboekt ÷ voorgesteld',
+    own: t => [t.geboekt, t.voorgesteld], bench: b => [b.calls_geboekt, b.calls_voorgesteld] },
+  { key: 'book_resp', label: 'Booking % based on responses', hint: 'geboekt ÷ replies',
+    own: t => [t.geboekt, t.replies], bench: b => [b.calls_geboekt, b.replies_outbound] },
+  { key: 'book_ob', label: 'Booking % on outbound', hint: 'geboekt ÷ outbounds',
+    own: t => [t.geboekt, t.outbounds], bench: b => [b.calls_geboekt, b.nieuwe_outbounds] },
+  { key: 'book_in', label: 'Booking % on inbounds', hint: 'geboekt ÷ inbound gesprekken',
+    own: t => [t.geboekt, t.inbound], bench: b => [b.calls_geboekt, b.inbound_gesprekken] },
+  { key: 'book_conv', label: 'Booking on total conversations', hint: 'geboekt ÷ (replies + inbound)',
+    own: t => [t.geboekt, t.replies + t.inbound], bench: b => [b.calls_geboekt, b.replies_outbound + b.inbound_gesprekken] },
 ]
 const pct = (numr: number, den: number) => (den > 0 ? Math.round((numr / den) * 100) : 0)
+
+function OutcomeTile({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
+  return (
+    <div className="p-4">
+      <div className="text-xs font-medium text-gray-500">{label}</div>
+      <div className="text-2xl font-bold text-gray-900 tabular-nums mt-1">{value}</div>
+      {sub && <div className="text-[11px] text-gray-400 mt-0.5">{sub}</div>}
+    </div>
+  )
+}
 
 export default function SetterEodDashboardPage() {
   const [dateFrom, setDateFrom] = useState(() => daysAgoString(7))
   const [dateTo, setDateTo] = useState(todayString)
   const [reports, setReports] = useState<EodReport[]>([])
   const [benchmark, setBenchmark] = useState<SetterBenchmark | null>(null)
+  const [calls, setCalls] = useState<Call[]>([])
   const [loading, setLoading] = useState(true)
 
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
       const qs = `dateFrom=${dateFrom}&dateTo=${dateTo}`
-      const [ownRes, benchRes] = await Promise.all([
+      const [ownRes, benchRes, callsRes] = await Promise.all([
         fetch(`/api/eod?roleType=SETTER&${qs}`),
         fetch(`/api/eod/setter-benchmark?${qs}`),
+        fetch(`/api/calls?${qs}`),
       ])
       const own = await ownRes.json()
       const bench = await benchRes.json()
+      const callsData = await callsRes.json()
       setReports(Array.isArray(own) ? own : [])
       setBenchmark(bench && typeof bench === 'object' && 'perDayAvg' in bench ? bench : null)
+      setCalls(Array.isArray(callsData) ? callsData : [])
     } catch {
       setReports([])
       setBenchmark(null)
+      setCalls([])
     }
     setLoading(false)
   }, [dateFrom, dateTo])
@@ -137,16 +168,20 @@ export default function SetterEodDashboardPage() {
   for (const r of reports) byDate[r.report_date] = r.answers || {}
   const trendLabels = rangeDays.map(d => formatDateShort(d))
 
-  // Totalen voor conversieratio's (som over de periode).
+  // Totalen voor de conversie-metrics (som over de periode).
   const sumOf = (get: (a: Answers) => number) => reports.reduce((s, r) => s + get(r.answers as Answers), 0)
-  const totals: Record<TotalKey, number> = {
+  const totals: Totals = {
     outbounds: sumOf(a => num(a.activiteit?.nieuwe_outbounds)),
     replies: sumOf(a => num(a.conversies?.replies_outbound)),
+    inbound: sumOf(a => num(a.conversies?.inbound_gesprekken)),
     positief: sumOf(a => num(a.conversies?.positieve_reacties)),
-    gekwalificeerd: sumOf(a => num(a.conversies?.leads_gekwalificeerd)),
+    voorgesteld: sumOf(a => num(a.calls?.calls_voorgesteld)),
     geboekt: sumOf(a => num(a.calls?.calls_geboekt_inbound) + num(a.calls?.calls_geboekt_outbound)),
-    calendly: sumOf(a => num(a.calls?.calendly_links_gestuurd)),
   }
+
+  // Echte call-uitkomsten (calls-tabel, setter-scoped) via de sales-metrics.
+  const cm = calculateMetrics(calls)
+  const takenCalls = cm.totalCalls - cm.noShows - cm.cancelled
 
   return (
     <div>
@@ -243,23 +278,24 @@ export default function SetterEodDashboardPage() {
             })}
           </div>
 
-          {/* Conversieratio's */}
+          {/* Conversie-metrics (funnel) */}
           <Card className="mb-6">
             <CardHeader>
-              <h2 className="text-sm font-semibold text-gray-900">Conversieratio&apos;s</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Funnel: outbounds → replies → positief → gekwalificeerd → geboekt</p>
+              <h2 className="text-sm font-semibold text-gray-900">Conversie-metrics</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Outbound + inbound funnel — eigen % met team-benchmark</p>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 divide-x divide-y divide-gray-100">
-                {CONVERSIONS.map(c => {
-                  const own = pct(totals[c.num], totals[c.den])
-                  const teamAvg = benchmark ? pct(benchmark.perDayAvg[c.bNum], benchmark.perDayAvg[c.bDen]) : null
+              <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y divide-gray-100">
+                {FUNNEL.map(f => {
+                  const [on, od] = f.own(totals)
+                  const own = pct(on, od)
+                  const teamAvg = benchmark ? (() => { const [bn, bd] = f.bench(benchmark.perDayAvg); return pct(bn, bd) })() : null
                   const good = teamAvg !== null && own >= teamAvg
                   return (
-                    <div key={c.key} className="p-4">
-                      <div className="text-xs font-medium text-gray-500">{c.label}</div>
+                    <div key={f.key} className="p-4">
+                      <div className="text-xs font-medium text-gray-500 leading-tight min-h-[28px]">{f.label}</div>
                       <div className="text-2xl font-bold text-gray-900 tabular-nums mt-1">{own}%</div>
-                      <div className="text-[11px] text-gray-400 mt-0.5">{c.hint}</div>
+                      <div className="text-[11px] text-gray-400 mt-0.5">{f.hint}</div>
                       {teamAvg !== null && (
                         <div className={`text-[11px] mt-1 ${good ? 'text-emerald-600' : 'text-amber-600'}`}>
                           team {teamAvg}%
@@ -268,6 +304,32 @@ export default function SetterEodDashboardPage() {
                     </div>
                   )
                 })}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Echte call-uitkomsten (calls-tabel) */}
+          <Card className="mb-6">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                  <PhoneCall className="w-3.5 h-3.5 text-gray-400" strokeWidth={2} /> Echte call-uitkomsten
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">Geboekte calls → show → closed (uit de sales-pipeline)</p>
+              </div>
+              <span className="text-[11px] text-gray-400">
+                EOD-geboekt {totals.geboekt} · echte calls {cm.totalCalls}
+              </span>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 divide-x divide-y divide-gray-100">
+                <OutcomeTile label="Geboekt" value={cm.totalCalls} />
+                <OutcomeTile label="Show" value={takenCalls} sub={`${Math.round(cm.showUpRate)}% show-rate`} />
+                <OutcomeTile label="Closed" value={cm.closedDeals} sub={`${Math.round(cm.closingRateTaken)}% v. taken`} />
+                <OutcomeTile label="No-show" value={cm.noShows} />
+                <OutcomeTile label="Cancelled" value={cm.cancelled} />
+                <OutcomeTile label="Omzet" value={eur(cm.totalDealValue)} />
+                <OutcomeTile label="Cash collected" value={eur(cm.totalCashCollected)} />
               </div>
             </CardContent>
           </Card>
