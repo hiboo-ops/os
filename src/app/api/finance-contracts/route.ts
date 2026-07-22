@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
     city,
     first_deposit_amount,
     first_deposit_date,
+    payment_plan,
   } = body as {
     call_id: string
     deal_value: number
@@ -51,6 +52,7 @@ export async function POST(req: NextRequest) {
     city?: string
     first_deposit_amount?: number
     first_deposit_date?: string
+    payment_plan?: string
   }
 
   let account_id: string | undefined = body.account_id
@@ -176,7 +178,7 @@ export async function POST(req: NextRequest) {
     .single()
 
   // 1. Contract aanmaken
-  const paymentPlanSummary = `${number_of_installments} termijnen`
+  const paymentPlanSummary = payment_plan?.trim() || `${number_of_installments} termijnen`
   const { data: contract, error: contractErr } = await admin
     .from('contracts')
     .insert({
