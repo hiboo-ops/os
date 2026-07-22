@@ -20,7 +20,7 @@ const RESULT_OPTIONS: CallResult[] = [
   'LOST - BAD FIT', 'NO SHOW', 'CANCELLED BY LEAD', 'CANCELLED BY CLOSER',
 ]
 
-type PayProvider = 'STRIPE' | 'WHOP' | 'MANUAL'
+type PayProvider = 'WHOP' | 'MANUAL'
 
 interface PaymentLinkState {
   incoming_payment_id: string
@@ -46,7 +46,7 @@ interface PackageOption {
 interface ContextData {
   lead: { id: string; quiz_answers: { question: string; answer: string }[] | null; triage_notes: string | null } | null
   account: { id: string; status: string; ltv: number } | null
-  payments: { id: string; installment_number: number; amount: number; due_date: string | null; status: string; pay_token: string }[]
+  payments: { id: string; installment_number: number; amount: number; due_date: string | null; status: string; pay_token: string; whop_link: string | null; stripe_link: string | null }[]
   contract: { id: string; esign_status: string | null; contract_signed: boolean | null; contract_pdf_url: string | null; deal_value: number | null; payment_plan: string | null } | null
 }
 
@@ -78,15 +78,23 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
   // ── First Payment Link state ──
   const [payAmount, setPayAmount] = useState<number | ''>(call.first_deposit ?? '')
   const [payProvider, setPayProvider] = useState<PayProvider>('MANUAL')
+  const [manualUrl, setManualUrl] = useState('')
   const [isDeposit, setIsDeposit] = useState(false)
   const [payLinkCreating, setPayLinkCreating] = useState(false)
   const [payLink, setPayLink] = useState<PaymentLinkState | null>(null)
+  // Handmatige link-override op bestaande termijnen
+  const [linkEditId, setLinkEditId] = useState<string | null>(null)
+  const [linkEditValue, setLinkEditValue] = useState('')
+  const [linkSaving, setLinkSaving] = useState(false)
 
   // ── Contract inline state (absorbed from ContractModal) ──
   const [showContractForm, setShowContractForm] = useState(false)
   const [signerName, setSignerName] = useState(call.name || '')
   const [signerEmail, setSignerEmail] = useState(call.email || '')
   const [signerMobile, setSignerMobile] = useState(call.phone || '')
+  const [address, setAddress] = useState('')
+  const [postcode, setPostcode] = useState('')
+  const [city, setCity] = useState('')
   const [numInstallments, setNumInstallments] = useState(3)
   const [contractCreating, setContractCreating] = useState(false)
   const [contractError, setContractError] = useState('')
@@ -135,9 +143,20 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
   // ── Derived values ──
 
   const showClosingPanel = result === 'CLOSED' || result === 'DEPOSIT'
-  const canCreateContract = result === 'CLOSED' && payLink !== null
 
-  const firstPaymentAmount = Number(payAmount) || 0
+  // Eerste betaling: uit sessie (net aangemaakt) OF uit opgeslagen context.
+  const contextFirstPayment = context?.payments.find(p => p.installment_number === 1) ?? context?.payments[0] ?? null
+  const hasFirstPayment = payLink !== null || (context?.payments.length ?? 0) > 0
+  const contractAccountId = payLink?.account_id ?? context?.account?.id ?? null
+  const contractFirstPaymentId = payLink?.incoming_payment_id ?? contextFirstPayment?.id ?? null
+  // Contract-module verschijnt bij CLOSED zodra er een eerste betaling is en er nog geen contract is.
+  const canCreateContract =
+    result === 'CLOSED' && hasFirstPayment && !context?.contract && !!contractAccountId && !!contractFirstPaymentId
+
+  // Bedrag van de eerste betaling: sessie-invoer, anders uit context.
+  const firstPaymentAmount = payLink !== null
+    ? (Number(payAmount) || 0)
+    : (contextFirstPayment ? Number(contextFirstPayment.amount) : (Number(payAmount) || 0))
   const remaining = contractDealValue - firstPaymentAmount
   const perInstallment = numInstallments > 0 ? Math.round((remaining / numInstallments) * 100) / 100 : 0
 
@@ -165,6 +184,14 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
   // Payment status from context
   const paidCount = context?.payments.filter(p => p.status === 'PAID').length ?? 0
   const totalPayments = context?.payments.length ?? 0
+  // Meest recente betaallink: hoogste termijnnummer met een provider-link
+  const recentLink: string | null = (() => {
+    const withLink = (context?.payments ?? [])
+      .filter(p => p.whop_link || p.stripe_link)
+      .sort((a, b) => b.installment_number - a.installment_number)
+    const p = withLink[0]
+    return p ? (p.whop_link || p.stripe_link) : null
+  })()
   const contractStatus = context?.contract
     ? context.contract.contract_signed ? 'Getekend' : context.contract.esign_status === 'SENT' ? 'Verstuurd' : 'Pending'
     : null
@@ -204,8 +231,26 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
     }
   }
 
+  const NOTE_TEXT: Record<string, string> = {
+    setter: call.setter_notes || '',
+    pre_call: preCallNotes,
+    closing: closingNotes,
+    triage: [call.triage_notes, context?.lead?.triage_notes].filter(Boolean).join('\n\n'),
+  }
+
   const sendToSlack = async (noteType: string) => {
+    const text = NOTE_TEXT[noteType]
+    if (!text || !text.trim()) return
     setSlackSent(prev => ({ ...prev, [noteType]: true }))
+    try {
+      await fetch(`/api/calls/${call.id}/slack-note`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note_type: noteType, text }),
+      })
+    } catch (err) {
+      console.error('Slack-push mislukt:', err)
+    }
     setTimeout(() => {
       setSlackSent(prev => ({ ...prev, [noteType]: false }))
     }, 3000)
@@ -223,6 +268,7 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
           amount: payAmount,
           provider: payProvider,
           is_deposit: isDeposit,
+          manual_url: payProvider === 'MANUAL' ? manualUrl : undefined,
         }),
       })
       if (res.ok) {
@@ -237,6 +283,8 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
           is_deposit: data.is_deposit,
         })
         onUpdate()
+        // Ververs context zodat de nieuwe betaling meteen zichtbaar is
+        fetch(`/api/calls/${call.id}/context`).then(r => r.json()).then(setContext).catch(() => {})
       }
     } catch (err) {
       console.error('Payment link creation failed:', err)
@@ -264,7 +312,10 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
       setContractError('Naam en e-mail zijn verplicht')
       return
     }
-    if (!payLink) return
+    if (!contractAccountId || !contractFirstPaymentId) {
+      setContractError('Geen eerste betaling gevonden — maak eerst een betaallink aan')
+      return
+    }
     setContractCreating(true)
     setContractError('')
     try {
@@ -273,15 +324,18 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           call_id: call.id,
-          account_id: payLink.account_id,
+          account_id: contractAccountId,
           deal_value: contractDealValue,
-          first_payment_id: payLink.incoming_payment_id,
+          first_payment_id: contractFirstPaymentId,
           number_of_installments: numInstallments,
           schedule,
           signer_name: signerName,
           signer_email: signerEmail,
           signer_mobile: signerMobile || undefined,
           package_id: selectedPackageId || undefined,
+          address: address || undefined,
+          postcode: postcode || undefined,
+          city: city || undefined,
         }),
       })
       if (!res.ok) {
@@ -297,6 +351,27 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
       setContractError('Netwerkfout bij aanmaken contract')
     } finally {
       setContractCreating(false)
+    }
+  }
+
+  // Handmatige link-override op een bestaande termijn
+  const saveManualLink = async (incomingPaymentId: string) => {
+    setLinkSaving(true)
+    try {
+      await fetch('/api/payment-links', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ incoming_payment_id: incomingPaymentId, url: linkEditValue }),
+      })
+      setLinkEditId(null)
+      setLinkEditValue('')
+      const fresh = await fetch(`/api/calls/${call.id}/context`).then(r => r.json()).catch(() => null)
+      if (fresh) setContext(fresh)
+      onUpdate()
+    } catch (err) {
+      console.error('Link opslaan mislukt:', err)
+    } finally {
+      setLinkSaving(false)
     }
   }
 
@@ -569,8 +644,8 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
               <div className="px-5 py-4 border-t border-gray-100 space-y-4">
                 <SectionLabel icon={CreditCard}>Closen & Innen</SectionLabel>
 
-                {/* First Payment */}
-                {!payLink ? (
+                {/* First Payment — aanmaakformulier (alleen als er nog geen eerste betaling is) */}
+                {!hasFirstPayment && (
                   <div className="space-y-3 mt-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
@@ -594,11 +669,24 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
                           className={`mt-1 ${inputClass}`}
                         >
                           <option value="MANUAL">Handmatig</option>
-                          <option value="STRIPE">Stripe</option>
                           <option value="WHOP">Whop</option>
                         </select>
                       </div>
                     </div>
+
+                    {/* Handmatige link plakken */}
+                    {payProvider === 'MANUAL' && (
+                      <div>
+                        <label className={labelClass}>Betaallink (handmatig)</label>
+                        <input
+                          type="url"
+                          value={manualUrl}
+                          onChange={e => setManualUrl(e.target.value)}
+                          placeholder="Plak hier je Whop/Stripe-link (optioneel)"
+                          className={`mt-1 ${inputClass}`}
+                        />
+                      </div>
+                    )}
 
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -616,12 +704,14 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
                       className="w-full"
                     >
                       {payLinkCreating ? 'Aanmaken...' : (
-                        <><Plus className="w-4 h-4" {...iconProps} /> First payment link aanmaken</>
+                        <><Plus className="w-4 h-4" {...iconProps} /> {payProvider === 'WHOP' ? 'Whop-link genereren' : 'Betaling aanmaken'}</>
                       )}
                     </Button>
                   </div>
-                ) : (
-                  <div className="space-y-3 mt-3">
+                )}
+
+                <div className="space-y-3 mt-3">
+                    {payLink && (
                     <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3">
                       <div className="flex items-center gap-2 mb-1">
                         <Check className="w-4 h-4 text-emerald-600" {...iconProps} />
@@ -643,9 +733,10 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
                         )}
                       </div>
                     </div>
+                    )}
 
                     {/* Contract section */}
-                    {canCreateContract && !context?.contract && (
+                    {canCreateContract && (
                       <>
                         {!showContractForm ? (
                           <Button
@@ -675,6 +766,22 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
                             <div>
                               <label className={labelClass}>Telefoon (optioneel)</label>
                               <input type="text" value={signerMobile} onChange={e => setSignerMobile(e.target.value)} className={`mt-1 ${inputClass}`} />
+                            </div>
+
+                            {/* Adres (optioneel, voor contract) */}
+                            <div>
+                              <label className={labelClass}>Adres (optioneel)</label>
+                              <input type="text" value={address} onChange={e => setAddress(e.target.value)} placeholder="Straat + huisnummer" className={`mt-1 ${inputClass}`} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className={labelClass}>Postcode</label>
+                                <input type="text" value={postcode} onChange={e => setPostcode(e.target.value)} className={`mt-1 ${inputClass}`} />
+                              </div>
+                              <div>
+                                <label className={labelClass}>Stad</label>
+                                <input type="text" value={city} onChange={e => setCity(e.target.value)} className={`mt-1 ${inputClass}`} />
+                              </div>
                             </div>
 
                             {/* Pakket */}
@@ -834,22 +941,85 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
                       </div>
                     )}
 
-                    {/* Existing payments status */}
+                    {/* Existing payments status + kopieer-links per termijn */}
                     {context && context.payments.length > 0 && (
                       <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
                         <div className="text-sm font-medium text-gray-800 mb-2">Betalingen ({paidCount}/{totalPayments})</div>
-                        <div className="space-y-1">
-                          {context.payments.map(p => (
-                            <div key={p.id} className="flex items-center justify-between text-xs">
-                              <span className="text-gray-500">#{p.installment_number} · EUR {Number(p.amount).toFixed(2)}</span>
-                              <Badge status={p.status} size="sm" />
-                            </div>
-                          ))}
+
+                        {/* Recente betaallink */}
+                        {recentLink && (
+                          <div className="flex items-center gap-2 mb-3 text-xs bg-white border border-gray-200 rounded-lg px-3 py-2">
+                            <span className="text-gray-400 shrink-0">Recente link</span>
+                            <a href={recentLink} target="_blank" rel="noopener noreferrer" className="text-accent-700 hover:underline truncate">{recentLink}</a>
+                            <button
+                              onClick={() => copyToClipboard(recentLink, 'recent-link')}
+                              className={`ml-auto shrink-0 p-1 rounded transition duration-[120ms] ${copied === 'recent-link' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                            >
+                              {copied === 'recent-link' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="space-y-1.5">
+                          {context.payments.map(p => {
+                            const link = p.whop_link || p.stripe_link
+                            return (
+                              <div key={p.id} className="text-xs">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-gray-500 truncate">
+                                    #{p.installment_number} · EUR {Number(p.amount).toFixed(2)}
+                                    {p.due_date && <span className="text-gray-400"> · {formatDate(p.due_date)}</span>}
+                                  </span>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    {link ? (
+                                      <button
+                                        onClick={() => copyToClipboard(link, `pay-${p.id}`)}
+                                        title="Betaallink kopiëren"
+                                        className={`p-1 rounded transition duration-[120ms] ${copied === `pay-${p.id}` ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                                      >
+                                        {copied === `pay-${p.id}` ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                      </button>
+                                    ) : null}
+                                    <button
+                                      onClick={() => { setLinkEditId(linkEditId === p.id ? null : p.id); setLinkEditValue(link || '') }}
+                                      className="text-[11px] text-gray-400 hover:text-gray-700 underline"
+                                    >
+                                      {link ? 'wijzig' : '+ link'}
+                                    </button>
+                                    <Badge status={p.status} size="sm" />
+                                  </div>
+                                </div>
+                                {linkEditId === p.id && (
+                                  <div className="flex items-center gap-2 mt-1.5">
+                                    <input
+                                      type="url"
+                                      value={linkEditValue}
+                                      onChange={e => setLinkEditValue(e.target.value)}
+                                      placeholder="Plak betaallink"
+                                      className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent-700"
+                                    />
+                                    <button
+                                      onClick={() => saveManualLink(p.id)}
+                                      disabled={linkSaving}
+                                      className="px-2 py-1 rounded bg-accent-700 text-white text-[11px] disabled:opacity-50"
+                                    >
+                                      Opslaan
+                                    </button>
+                                    <button
+                                      onClick={() => { setLinkEditId(null); setLinkEditValue('') }}
+                                      className="px-2 py-1 rounded border border-gray-200 text-gray-500 text-[11px]"
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
                     )}
                   </div>
-                )}
               </div>
             )}
           </div>

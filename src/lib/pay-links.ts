@@ -1,10 +1,11 @@
 /**
  * Pay-link generation.
- * Stripe/Whop sessies zijn gated op env — zonder keys krijg je een pending-status.
- * De echte SDK-integratie komt via de Integrations-tab (andere terminal).
+ * Whop-checkout wordt gated op env (WHOP_API_KEY + WHOP_COMPANY_ID + WHOP_PRODUCT_ID).
+ * Zonder keys → PENDING (closer valt terug op handmatige link). MANUAL = handmatig
+ * geplakte link (afgehandeld in de payment-links route, niet hier).
  */
 
-export type PayProvider = 'STRIPE' | 'WHOP' | 'MANUAL'
+export type PayProvider = 'WHOP' | 'MANUAL'
 
 export interface PayLinkResult {
   url: string | null
@@ -13,7 +14,7 @@ export interface PayLinkResult {
 
 /**
  * Genereer een betaallink voor een incoming_payment.
- * Probeert Stripe of Whop (gated op env) — valt terug op PENDING.
+ * Alleen WHOP genereert hier echt; MANUAL/onbekend → geen url.
  */
 export async function generatePayLink(
   provider: PayProvider,
@@ -22,51 +23,72 @@ export async function generatePayLink(
   amount: number,
   email?: string | null,
 ): Promise<PayLinkResult> {
-  if (provider === 'MANUAL') {
-    return { url: null, provider: 'MANUAL' }
-  }
-
-  if (provider === 'STRIPE') {
-    const result = await generateStripePayLink(incomingPaymentId, payToken, amount, email || undefined)
-    if (result) return result
-  }
-
   if (provider === 'WHOP') {
-    const result = await generateWhopPayLink(incomingPaymentId, payToken, amount)
+    const result = await generateWhopPayLink(incomingPaymentId, payToken, amount, email)
     if (result) return result
+    return { url: null, provider: 'PENDING' }
   }
-
-  // Geen keys beschikbaar → pending
-  return { url: null, provider: 'PENDING' }
+  // MANUAL of onbekend → geen gegenereerde url
+  return { url: null, provider: 'MANUAL' }
 }
 
 /**
- * Genereer een Stripe Checkout link.
- * Gated op STRIPE_SECRET_KEY env var.
- */
-async function generateStripePayLink(
-  _incomingPaymentId: string,
-  _payToken: string,
-  _amount: number,
-  _email?: string,
-): Promise<PayLinkResult | null> {
-  if (!process.env.STRIPE_SECRET_KEY) return null
-  // TODO: implementeer Stripe Checkout Session aanmaken
-  // metadata: { incoming_payment_id: _incomingPaymentId, pay_token: _payToken }
-  return null
-}
-
-/**
- * Genereer een Whop betaallink.
- * Gated op WHOP_API_KEY env var.
+ * Whop one-time checkout met dynamisch bedrag.
+ * Maakt een plan op basis van het (ene) Whop-product met initial_price = bedrag,
+ * hangt metadata.incoming_payment_id eraan (voor webhook-matching) en geeft de
+ * gehoste purchase_url terug. Gated op env; retourneert null bij ontbrekende
+ * config of API-fout (dan valt de route terug op PENDING).
  */
 async function generateWhopPayLink(
-  _incomingPaymentId: string,
-  _payToken: string,
-  _amount: number,
+  incomingPaymentId: string,
+  payToken: string,
+  amount: number,
+  _email?: string | null,
 ): Promise<PayLinkResult | null> {
-  if (!process.env.WHOP_API_KEY) return null
-  // TODO: implementeer Whop Payment Link aanmaken
-  // metadata: { incoming_payment_id: _incomingPaymentId, pay_token: _payToken }
-  return null
+  const apiKey = process.env.WHOP_API_KEY
+  const companyId = process.env.WHOP_COMPANY_ID
+  const productId = process.env.WHOP_PRODUCT_ID
+  if (!apiKey || !companyId || !productId) return null
+
+  try {
+    const res = await fetch('https://api.whop.com/api/v2/plans', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        company_id: companyId,
+        product_id: productId,
+        plan_type: 'one_time',
+        currency: 'eur',
+        initial_price: amount,
+        visibility: 'quick_link',
+        metadata: {
+          incoming_payment_id: incomingPaymentId,
+          pay_token: payToken,
+        },
+      }),
+    })
+
+    const data = await res.json().catch(() => ({} as Record<string, unknown>))
+    if (!res.ok) {
+      console.error('Whop plan-creatie mislukt:', res.status, data)
+      return null
+    }
+
+    const url =
+      (data as { purchase_url?: string }).purchase_url ||
+      ((data as { id?: string }).id ? `https://whop.com/checkout/${(data as { id: string }).id}` : null)
+
+    if (!url) {
+      console.error('Whop: geen purchase_url in response', data)
+      return null
+    }
+
+    return { url, provider: 'WHOP' }
+  } catch (err) {
+    console.error('Whop link-generatie error:', err)
+    return null
+  }
 }

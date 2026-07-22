@@ -15,11 +15,12 @@ export async function POST(req: NextRequest) {
   if (denied) return denied
 
   const body = await req.json()
-  const { call_id, amount, provider, is_deposit } = body as {
+  const { call_id, amount, provider, is_deposit, manual_url } = body as {
     call_id: string
     amount: number
     provider: PayProvider
     is_deposit?: boolean
+    manual_url?: string
   }
 
   if (!call_id || !amount || amount <= 0) {
@@ -29,9 +30,9 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  if (!provider || !['STRIPE', 'WHOP', 'MANUAL'].includes(provider)) {
+  if (!provider || !['WHOP', 'MANUAL'].includes(provider)) {
     return NextResponse.json(
-      { error: 'provider moet STRIPE, WHOP of MANUAL zijn' },
+      { error: 'provider moet WHOP of MANUAL zijn' },
       { status: 400 },
     )
   }
@@ -81,21 +82,22 @@ export async function POST(req: NextRequest) {
     due_date: new Date().toISOString().split('T')[0],
   })
 
-  // 3. Genereer betaallink (gated op provider keys)
-  const linkResult = await generatePayLink(
-    provider,
-    ip.id,
-    ip.pay_token,
-    amount,
-    call.email,
-  )
+  // 3. Bepaal de link: MANUAL = geplakte url; WHOP = genereer via API (gated).
+  let url: string | null = null
+  let resolvedProvider: string = provider
+  if (provider === 'MANUAL') {
+    url = manual_url?.trim() || null
+  } else {
+    const linkResult = await generatePayLink(provider, ip.id, ip.pay_token, amount, call.email)
+    url = linkResult.url
+    resolvedProvider = linkResult.provider
+  }
 
-  // 4. Update incoming_payment met link indien beschikbaar
-  if (linkResult.url) {
-    const linkField = provider === 'STRIPE' ? 'stripe_link' : 'whop_link'
+  // 4. Sla de link op de incoming_payment op (in whop_link, ons weergaveveld)
+  if (url) {
     await admin
       .from('incoming_payments')
-      .update({ [linkField]: linkResult.url, updated_at: new Date().toISOString() })
+      .update({ whop_link: url, updated_at: new Date().toISOString() })
       .eq('id', ip.id)
   }
 
@@ -103,8 +105,40 @@ export async function POST(req: NextRequest) {
     account_id: account.id,
     incoming_payment_id: ip.id,
     pay_token: ip.pay_token,
-    provider: linkResult.provider,
-    url: linkResult.url,
+    provider: resolvedProvider,
+    url,
     is_deposit: !!is_deposit,
   }, { status: 201 })
+}
+
+/**
+ * PATCH /api/payment-links
+ * Handmatige override: zet/plak een betaallink op een bestaande incoming_payment.
+ * Closer-toegankelijk maar alleen het link-veld (whop_link) — geen status/bedrag.
+ */
+export async function PATCH(req: NextRequest) {
+  const user = await getAuthUser()
+  const denied = requireRole(user, ['ADMIN', 'CLOSER', 'FINANCE'])
+  if (denied) return denied
+
+  const { incoming_payment_id, url } = await req.json() as {
+    incoming_payment_id?: string
+    url?: string
+  }
+
+  if (!incoming_payment_id) {
+    return NextResponse.json({ error: 'incoming_payment_id is verplicht' }, { status: 400 })
+  }
+
+  const admin = getSupabaseAdmin()
+  const { error } = await admin
+    .from('incoming_payments')
+    .update({ whop_link: url?.trim() || null, updated_at: new Date().toISOString() })
+    .eq('id', incoming_payment_id)
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ success: true, url: url?.trim() || null })
 }

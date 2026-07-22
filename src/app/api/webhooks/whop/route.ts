@@ -1,14 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server'
+import crypto from 'crypto'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import { updateAccountLtv } from '@/lib/queries/accounts'
 
 /**
- * Whop webhook skeleton.
+ * Whop webhook.
  * Gated op WHOP_WEBHOOK_SECRET — retourneert 501 als niet geconfigureerd.
- * Matching-logica op metadata.incoming_payment_id is nu al gebouwd;
- * de echte Whop SDK-integratie (signature verificatie, event parsing)
- * komt via de Integrations-tab (andere terminal).
+ * Verifieert de signature volgens de Standard Webhooks-spec (headers
+ * webhook-id/webhook-timestamp/webhook-signature) en matcht op
+ * metadata.incoming_payment_id.
  */
+
+// Verifieer de Standard-Webhooks-handtekening: HMAC-SHA256 over "{id}.{ts}.{body}".
+function verifyWhopSignature(
+  secret: string,
+  id: string | null,
+  timestamp: string | null,
+  body: string,
+  signatureHeader: string | null,
+): boolean {
+  if (!id || !timestamp || !signatureHeader) return false
+  const secretBytes = Buffer.from(secret.startsWith('whsec_') ? secret.slice(6) : secret, 'base64')
+  const signedContent = `${id}.${timestamp}.${body}`
+  const expected = crypto.createHmac('sha256', secretBytes).update(signedContent).digest('base64')
+  // Header kan meerdere space-gescheiden "v1,<sig>"-waarden bevatten.
+  const sigs = signatureHeader.split(' ').map(s => s.includes(',') ? s.split(',')[1] : s).filter(Boolean)
+  return sigs.some(sig => {
+    const a = Buffer.from(sig)
+    const b = Buffer.from(expected)
+    return a.length === b.length && crypto.timingSafeEqual(a, b)
+  })
+}
+
 export async function POST(req: NextRequest) {
   const webhookSecret = process.env.WHOP_WEBHOOK_SECRET
   if (!webhookSecret) {
@@ -28,7 +51,17 @@ export async function POST(req: NextRequest) {
     payload: { body: body.slice(0, 5000) },
   })
 
-  // TODO: Whop signature verificatie met webhookSecret
+  // Signature-verificatie (Standard Webhooks)
+  const valid = verifyWhopSignature(
+    webhookSecret,
+    req.headers.get('webhook-id'),
+    req.headers.get('webhook-timestamp'),
+    body,
+    req.headers.get('webhook-signature'),
+  )
+  if (!valid) {
+    return NextResponse.json({ error: 'Ongeldige signature' }, { status: 401 })
+  }
 
   let event: { action: string; data: Record<string, unknown> }
   try {

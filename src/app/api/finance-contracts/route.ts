@@ -30,6 +30,9 @@ export async function POST(req: NextRequest) {
     signer_email,
     signer_mobile,
     package_id,
+    address,
+    postcode,
+    city,
   } = body as {
     call_id: string
     account_id: string
@@ -41,6 +44,9 @@ export async function POST(req: NextRequest) {
     signer_email: string
     signer_mobile?: string
     package_id?: string
+    address?: string
+    postcode?: string
+    city?: string
   }
 
   if (!call_id || !account_id || !deal_value || !first_payment_id) {
@@ -116,6 +122,9 @@ export async function POST(req: NextRequest) {
       source: 'SALES',
       esign_status: 'PENDING',
       ...(package_id ? { package_id } : {}),
+      ...(address ? { address } : {}),
+      ...(postcode ? { postcode } : {}),
+      ...(city ? { city } : {}),
     })
     .select()
     .single()
@@ -172,6 +181,9 @@ export async function POST(req: NextRequest) {
     installment_amount: `€${installmentAmount}`,
     payment_schedule: paymentScheduleMarkdown,
     start_date: schedule[0]?.due_date || new Date().toISOString().split('T')[0],
+    address: address || '',
+    postcode: postcode || '',
+    city: city || '',
   }
 
   // Context-rijen voor source_field resolving
@@ -208,6 +220,9 @@ export async function POST(req: NextRequest) {
       installment_amount: computedValues.installment_amount,
       payment_schedule: computedValues.payment_schedule,
       start_date: computedValues.start_date,
+      address: computedValues.address,
+      postcode: computedValues.postcode,
+      city: computedValues.city,
     }
   }
 
