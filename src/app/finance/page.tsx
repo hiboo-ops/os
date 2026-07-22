@@ -53,7 +53,7 @@ const ATTRIBUTION_TABS: { value: AttributionDimension; label: string }[] = [
 
 export default function FinancePage() {
   const [period, setPeriod] = useState<Period>('all')
-  const [includeLegacy, setIncludeLegacy] = useState(true)
+  const includeLegacy = false // legacy-receivables horen in Collections, niet in dit overzicht
   const [attrDimension, setAttrDimension] = useState<AttributionDimension>('closer')
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -65,7 +65,7 @@ export default function FinancePage() {
       .then((r) => r.json())
       .then((d) => setData(d))
       .finally(() => setLoading(false))
-  }, [period, includeLegacy, attrDimension])
+  }, [period, attrDimension])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -98,16 +98,6 @@ export default function FinancePage() {
               </button>
             ))}
           </div>
-          {/* Legacy toggle */}
-          <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={!includeLegacy}
-              onChange={(e) => setIncludeLegacy(!e.target.checked)}
-              className="rounded border-gray-300 text-gray-900 focus:ring-gray-900"
-            />
-            Excl. legacy
-          </label>
         </div>
       </div>
 
