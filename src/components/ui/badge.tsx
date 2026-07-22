@@ -50,6 +50,13 @@ const styles: Record<string, string> = {
   // Team
   INACTIVE: 'bg-gray-50 text-gray-500 border-gray-200',
 
+  // Collection status
+  REMINDER_SENT: 'bg-sky-50 text-sky-700 border-sky-200',
+  CONTACTED: 'bg-blue-50 text-blue-700 border-blue-200',
+  PROMISE_TO_PAY: 'bg-violet-50 text-violet-700 border-violet-200',
+  ESCALATED: 'bg-red-50 text-red-700 border-red-200',
+  SCHEDULED: 'bg-gray-50 text-gray-500 border-gray-200',
+
   // Lead triage stages
   LEAD: 'bg-blue-50 text-blue-700 border-blue-200',
   'FOLLOW UP': 'bg-sky-50 text-sky-700 border-sky-200',
