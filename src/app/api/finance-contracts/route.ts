@@ -78,18 +78,29 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // 0. Pakket opzoeken voor esign template_id
+  // 0. Pakket opzoeken voor esign template_id + placeholder mapping
   let esignTemplateId: string | undefined
+  let placeholderMap: { placeholder_key: string; source_field: string }[] | null = null
   if (package_id) {
     const { data: pkg } = await admin
       .from('packages')
-      .select('esign_template_id')
+      .select('esign_template_id, esign_placeholder_map')
       .eq('id', package_id)
       .single()
     if (pkg?.esign_template_id) {
       esignTemplateId = pkg.esign_template_id
     }
+    if (pkg?.esign_placeholder_map && Array.isArray(pkg.esign_placeholder_map)) {
+      placeholderMap = pkg.esign_placeholder_map as unknown as { placeholder_key: string; source_field: string }[]
+    }
   }
+
+  // Account ophalen voor placeholder-resolving
+  const { data: account } = await admin
+    .from('accounts')
+    .select('*')
+    .eq('id', account_id)
+    .single()
 
   // 1. Contract aanmaken
   const paymentPlanSummary = `${number_of_installments} termijnen`
@@ -153,6 +164,53 @@ export async function POST(req: NextRequest) {
     .map((item, idx) => `| ${idx + 2} | €${item.amount} | ${item.due_date} |`)
     .join('\n')
 
+  // Berekende waarden voor placeholder-resolving
+  const computedValues: Record<string, string> = {
+    deal_value: `€${deal_value}`,
+    first_payment_amount: `€${firstPayment.amount}`,
+    number_of_installments: String(number_of_installments),
+    installment_amount: `€${installmentAmount}`,
+    payment_schedule: paymentScheduleMarkdown,
+    start_date: schedule[0]?.due_date || new Date().toISOString().split('T')[0],
+  }
+
+  // Context-rijen voor source_field resolving
+  const contextRows: Record<string, Record<string, unknown>> = {
+    accounts: account || {},
+    contracts: contract,
+    incoming_payments: firstPayment,
+  }
+
+  let placeholderFields: Record<string, string>
+
+  if (placeholderMap && placeholderMap.length > 0) {
+    // Resolve elke mapping uit de package-configuratie
+    placeholderFields = {}
+    for (const { placeholder_key, source_field } of placeholderMap) {
+      const [source, field] = source_field.split('.')
+      if (source === 'computed') {
+        placeholderFields[placeholder_key] = computedValues[field] ?? ''
+      } else if (contextRows[source]) {
+        const val = contextRows[source][field]
+        placeholderFields[placeholder_key] = val != null ? String(val) : ''
+      } else {
+        placeholderFields[placeholder_key] = ''
+      }
+    }
+  } else {
+    // Fallback: standaard hardcoded set
+    placeholderFields = {
+      client_name: signer_name,
+      client_email: signer_email,
+      deal_value: computedValues.deal_value,
+      first_payment_amount: computedValues.first_payment_amount,
+      number_of_installments: computedValues.number_of_installments,
+      installment_amount: computedValues.installment_amount,
+      payment_schedule: computedValues.payment_schedule,
+      start_date: computedValues.start_date,
+    }
+  }
+
   const esignResult = await createEsignContract({
     title: `Contract ${signer_name} — €${deal_value}`,
     templateId: esignTemplateId,
@@ -161,16 +219,7 @@ export async function POST(req: NextRequest) {
       email: signer_email,
       mobile: signer_mobile,
     },
-    placeholderFields: {
-      client_name: signer_name,
-      client_email: signer_email,
-      deal_value: `€${deal_value}`,
-      first_payment_amount: `€${firstPayment.amount}`,
-      number_of_installments: String(number_of_installments),
-      installment_amount: `€${installmentAmount}`,
-      payment_schedule: paymentScheduleMarkdown,
-      start_date: schedule[0]?.due_date || new Date().toISOString().split('T')[0],
-    },
+    placeholderFields,
   })
 
   // Update contract met esign-info
