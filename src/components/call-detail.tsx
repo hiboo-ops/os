@@ -465,9 +465,8 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
             </div>
           )}
 
-          {/* Payment Links */}
-          {(context?.payments.length || result === 'CLOSED' || result === 'DEPOSIT') && (
-            <div>
+          {/* Payment Links — altijd zichtbaar, ongeacht result */}
+          <div>
               <SectionTitle>Payment Links</SectionTitle>
               <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
                 {linkedPayments.length > 0 && (
@@ -512,8 +511,7 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
                   </button>
                 </Row>
               </div>
-            </div>
-          )}
+          </div>
 
           {/* Installments */}
           {installments.length > 0 && (
