@@ -7,7 +7,7 @@ import {
   Megaphone, ClipboardCheck, Menu, X, LayoutDashboard,
   Columns3, ListChecks, FileEdit, ChevronDown, BookOpen,
   Phone, Kanban, CalendarDays, CreditCard, Handshake, Calendar,
-  ClipboardList
+  ClipboardList, Inbox
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
@@ -46,6 +46,7 @@ const nav: NavItem[] = [
     href: '/finance', label: 'Finance', icon: DollarSign, roles: ['ADMIN', 'FINANCE'],
     children: [
       { href: '/finance', label: 'Overzicht', icon: LayoutDashboard },
+      { href: '/finance/collections', label: 'Collections', icon: Inbox },
       { href: '/finance/accounts', label: 'Accounts', icon: Users },
       { href: '/finance/verificatie', label: 'Verificatie', icon: ClipboardCheck },
       { href: '/eod/finance', label: 'EOD', icon: ClipboardList },
