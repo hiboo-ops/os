@@ -26,11 +26,12 @@ export async function POST(req: NextRequest) {
   if (denied) return denied
 
   const body = await req.json()
-  const { name, price, description, esign_template_id, active } = body as {
+  const { name, price, description, esign_template_id, esign_placeholder_map, active } = body as {
     name: string
     price: number
     description?: string
     esign_template_id?: string
+    esign_placeholder_map?: { placeholder_key: string; source_field: string }[] | null
     active?: boolean
   }
 
@@ -46,6 +47,7 @@ export async function POST(req: NextRequest) {
       price,
       description: description || null,
       esign_template_id: esign_template_id || null,
+      esign_placeholder_map: esign_placeholder_map || null,
       active: active ?? true,
     })
     .select()
@@ -70,6 +72,7 @@ export async function PATCH(req: NextRequest) {
     price?: number
     description?: string
     esign_template_id?: string
+    esign_placeholder_map?: { placeholder_key: string; source_field: string }[] | null
     active?: boolean
   }
 

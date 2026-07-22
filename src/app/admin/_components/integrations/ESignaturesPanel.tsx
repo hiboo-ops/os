@@ -7,14 +7,30 @@ import { Plus, Pencil, Trash2, CheckCircle, XCircle } from 'lucide-react'
 
 const iconProps = { strokeWidth: 1.75 } as const
 
+interface PlaceholderMapping {
+  placeholder_key: string
+  source_field: string
+}
+
 interface Package {
   id: string
   name: string
   price: number
   description: string | null
   esign_template_id: string | null
+  esign_placeholder_map: PlaceholderMapping[] | null
   active: boolean
   created_at: string
+}
+
+interface FieldOption {
+  value: string
+  label: string
+}
+
+interface FieldGroup {
+  group: string
+  fields: FieldOption[]
 }
 
 export function ESignaturesPanel() {
@@ -99,6 +115,7 @@ export function ESignaturesPanel() {
                   <th className="px-4 py-2.5 text-left font-semibold">Naam</th>
                   <th className="px-4 py-2.5 text-left font-semibold">Prijs</th>
                   <th className="px-4 py-2.5 text-left font-semibold">Template ID</th>
+                  <th className="px-4 py-2.5 text-left font-semibold">Mapping</th>
                   <th className="px-4 py-2.5 text-left font-semibold">Actief</th>
                   <th className="px-4 py-2.5 text-right font-semibold">Acties</th>
                 </tr>
@@ -120,6 +137,15 @@ export function ESignaturesPanel() {
                         </code>
                       ) : (
                         <span className="text-xs text-gray-400">Fallback (env)</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {pkg.esign_placeholder_map && pkg.esign_placeholder_map.length > 0 ? (
+                        <span className="text-xs text-emerald-600 font-medium">
+                          {pkg.esign_placeholder_map.length} veld{pkg.esign_placeholder_map.length !== 1 ? 'en' : ''}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">Standaard</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -169,13 +195,43 @@ function PackageFormSlideOver({ pkg, onClose, onSaved }: {
     esign_template_id: pkg?.esign_template_id || '',
     active: pkg?.active ?? true,
   })
+  const [mappings, setMappings] = useState<PlaceholderMapping[]>(
+    pkg?.esign_placeholder_map || []
+  )
+  const [fieldGroups, setFieldGroups] = useState<FieldGroup[]>([])
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/schema/fields')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) setFieldGroups(data)
+      })
+      .catch(() => {})
+  }, [])
+
+  const addMapping = () => {
+    setMappings([...mappings, { placeholder_key: '', source_field: '' }])
+  }
+
+  const removeMapping = (index: number) => {
+    setMappings(mappings.filter((_, i) => i !== index))
+  }
+
+  const updateMapping = (index: number, field: keyof PlaceholderMapping, value: string) => {
+    const updated = [...mappings]
+    updated[index] = { ...updated[index], [field]: value }
+    setMappings(updated)
+  }
 
   const handleSave = async () => {
     if (!form.name || form.price === '') {
       alert('Naam en prijs zijn verplicht')
       return
     }
+
+    const validMappings = mappings.filter(m => m.placeholder_key && m.source_field)
+
     setSaving(true)
     if (isEdit) {
       await fetch('/api/packages', {
@@ -187,6 +243,7 @@ function PackageFormSlideOver({ pkg, onClose, onSaved }: {
           price: Number(form.price),
           description: form.description || null,
           esign_template_id: form.esign_template_id || null,
+          esign_placeholder_map: validMappings.length > 0 ? validMappings : null,
           active: form.active,
         }),
       })
@@ -199,6 +256,7 @@ function PackageFormSlideOver({ pkg, onClose, onSaved }: {
           price: Number(form.price),
           description: form.description || null,
           esign_template_id: form.esign_template_id || null,
+          esign_placeholder_map: validMappings.length > 0 ? validMappings : null,
           active: form.active,
         }),
       })
@@ -244,6 +302,59 @@ function PackageFormSlideOver({ pkg, onClose, onSaved }: {
             className="mt-1.5 w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700" />
           <p className="text-[10px] text-gray-400 mt-1">Template ID uit eSignatures.io. Laat leeg om de standaard template te gebruiken.</p>
         </Field>
+
+        {/* Placeholder Mapping */}
+        <div className="pt-2 border-t border-gray-100">
+          <div className="flex items-center justify-between mb-3">
+            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Placeholder Mapping</label>
+            <button onClick={addMapping} className="text-xs text-accent-700 hover:text-accent-800 font-medium flex items-center gap-1">
+              <Plus className="w-3 h-3" {...iconProps} /> Rij toevoegen
+            </button>
+          </div>
+          <p className="text-[10px] text-gray-400 mb-3">
+            Koppel eSignatures-placeholders aan bronvelden. Leeg = standaard mapping.
+          </p>
+
+          {mappings.length === 0 ? (
+            <div className="bg-gray-50 rounded-lg border border-dashed border-gray-200 p-4 text-center">
+              <p className="text-xs text-gray-400">Geen mapping ingesteld — standaard velden worden gebruikt.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {mappings.map((mapping, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={mapping.placeholder_key}
+                    onChange={e => updateMapping(idx, 'placeholder_key', e.target.value)}
+                    placeholder="placeholder_key"
+                    className="flex-1 text-xs border border-gray-200 rounded-lg px-2.5 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700 font-mono"
+                  />
+                  <span className="text-gray-300 text-xs shrink-0">&rarr;</span>
+                  <select
+                    value={mapping.source_field}
+                    onChange={e => updateMapping(idx, 'source_field', e.target.value)}
+                    className="flex-1 text-xs border border-gray-200 rounded-lg px-2.5 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700"
+                  >
+                    <option value="">Kies bronveld...</option>
+                    {fieldGroups.map(group => (
+                      <optgroup key={group.group} label={group.group}>
+                        {group.fields.map(f => (
+                          <option key={f.value} value={f.value}>{f.label}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                  <button onClick={() => removeMapping(idx)}
+                    className="p-1.5 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0">
+                    <Trash2 className="w-3.5 h-3.5" {...iconProps} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {isEdit && (
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={form.active}
