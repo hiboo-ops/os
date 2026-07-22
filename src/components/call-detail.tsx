@@ -343,6 +343,7 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
           call_id: call.id,
           deal_value: contractDealValue,
           number_of_installments: numInstallments,
+          payment_plan: paymentPlan,
           schedule,
           signer_name: signerName,
           signer_email: signerEmail,

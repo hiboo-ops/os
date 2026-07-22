@@ -112,6 +112,7 @@ function ChangeIndicator({ current, previous, isPercentage = false, invert = fal
 
 export default function SalesOverview() {
   const [allCalls, setAllCalls] = useState<Call[]>([])
+  const [contractMix, setContractMix] = useState<{ call_id: string | null; count: number }[]>([])
   const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState<TimePeriod>('all')
   const [dateFrom, setDateFrom] = useState('')
@@ -125,6 +126,7 @@ export default function SalesOverview() {
       setAllCalls(data)
       setLoading(false)
     })
+    fetch('/api/sales/contract-mix').then(r => r.json()).then(d => setContractMix(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
 
   const closers = useMemo(() =>
@@ -193,6 +195,22 @@ export default function SalesOverview() {
 
   const metrics = useMemo(() => calculateMetrics(filteredCalls), [filteredCalls])
   const prevMetrics = useMemo(() => calculateMetrics(previousCalls), [previousCalls])
+
+  // Contract-mix (PIF vs Split) over de gefilterde calls: 1 termijn = PIF, >=2 = Split.
+  const contractMixStats = useMemo(() => {
+    const ids = new Set(filteredCalls.map(c => c.id))
+    const relevant = contractMix.filter(c => c.call_id && ids.has(c.call_id))
+    const total = relevant.length
+    const split = relevant.filter(c => c.count >= 2).length
+    const pif = total - split
+    return {
+      total,
+      pif,
+      split,
+      pifPct: total > 0 ? Math.round((pif / total) * 100) : 0,
+      splitPct: total > 0 ? Math.round((split / total) * 100) : 0,
+    }
+  }, [contractMix, filteredCalls])
 
   const sources = useMemo(() => [...new Set(allCalls.map(c => c.source).filter(Boolean))].sort(), [allCalls])
   const types = useMemo(() => [...new Set(allCalls.map(c => c.source_type).filter(Boolean))].sort(), [allCalls])
@@ -373,6 +391,18 @@ export default function SalesOverview() {
           value={eur(metrics.cashPerCallBooked)}
           rawCurrent={metrics.cashPerCallBooked}
           rawPrev={hasPreviousPeriod ? prevMetrics.cashPerCallBooked : undefined}
+        />
+
+        {/* Row 3: contract-mix */}
+        <MetricCard
+          label="Paid in Full"
+          value={`${contractMixStats.pifPct}%`}
+          subtitle={`${contractMixStats.pif}/${contractMixStats.total} contracten`}
+        />
+        <MetricCard
+          label="Split (termijnen)"
+          value={`${contractMixStats.splitPct}%`}
+          subtitle={`${contractMixStats.split}/${contractMixStats.total} contracten`}
         />
       </div>
 

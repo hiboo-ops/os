@@ -22,6 +22,10 @@ export interface FinanceKpis {
   cashVsDeal: number // percentage
   avgLtv: number
   totalLtv: number
+  pifCount: number
+  splitCount: number
+  pifPct: number // % van contracts dat Paid in Full is
+  splitPct: number // % van contracts dat een termijnregeling (split) is
 }
 
 export interface MonthlyData {
@@ -119,9 +123,9 @@ export async function getFinanceKpis(
 
   // ─ Query 1: incoming_payments ─
   const { data: ipRows } = includeLegacy
-    ? await admin.from('incoming_payments').select('amount, due_date, status, installment_number')
+    ? await admin.from('incoming_payments').select('amount, due_date, status, installment_number, contract_id')
     : await admin.from('incoming_payments')
-        .select('amount, due_date, status, installment_number, account:accounts!inner(is_legacy)')
+        .select('amount, due_date, status, installment_number, contract_id, account:accounts!inner(is_legacy)')
         .eq('accounts.is_legacy', false)
 
   const ips = (ipRows || []) as unknown as {
@@ -129,7 +133,14 @@ export async function getFinanceKpis(
     due_date: string | null
     status: string
     installment_number: number
+    contract_id: string | null
   }[]
+
+  // Aantal termijnen per contract (voor PIF vs Split): 1 = PIF, >=2 = Split.
+  const ipCountByContract: Record<string, number> = {}
+  for (const ip of ips) {
+    if (ip.contract_id) ipCountByContract[ip.contract_id] = (ipCountByContract[ip.contract_id] || 0) + 1
+  }
 
   let openAmount = 0, openCount = 0
   let lateAmount = 0, lateCount = 0
@@ -196,22 +207,35 @@ export async function getFinanceKpis(
 
   // ─ Query 3: contracts ─
   const { data: ctRows } = includeLegacy
-    ? await admin.from('contracts').select('deal_value, created_at')
+    ? await admin.from('contracts').select('id, deal_value, payment_plan, created_at')
     : await admin.from('contracts')
-        .select('deal_value, created_at, account:accounts!inner(is_legacy)')
+        .select('id, deal_value, payment_plan, created_at, account:accounts!inner(is_legacy)')
         .eq('accounts.is_legacy', false)
 
   let totalContracts = 0, totalDealValue = 0
+  let pifCount = 0, splitCount = 0
   for (const row of (ctRows || []) as unknown as {
+    id: string
     deal_value: number | null
+    payment_plan: string | null
     created_at: string
   }[]) {
     const inPeriod = !bounds || (row.created_at && row.created_at.slice(0, 10) >= bounds.start && row.created_at.slice(0, 10) <= bounds.end)
     if (inPeriod) {
       totalContracts++
       totalDealValue += row.deal_value || 0
+      // PIF vs Split: primair op aantal termijnen; fallback op payment_plan-tekst.
+      const ipCount = ipCountByContract[row.id]
+      const pp = (row.payment_plan || '').toLowerCase()
+      const isSplit = ipCount != null
+        ? ipCount >= 2
+        : /(\d+)\s*(installment|termijn)/.test(pp) ? Number(pp.match(/(\d+)/)?.[1]) >= 2 : !pp.includes('paid in full')
+      if (isSplit) splitCount++
+      else pifCount++
     }
   }
+  const pifPct = totalContracts > 0 ? Math.round((pifCount / totalContracts) * 100) : 0
+  const splitPct = totalContracts > 0 ? Math.round((splitCount / totalContracts) * 100) : 0
 
   // ─ Query 4: LTV ─
   let ltvQuery = admin.from('accounts').select('ltv, created_at')
@@ -260,6 +284,10 @@ export async function getFinanceKpis(
     cashVsDeal,
     avgLtv,
     totalLtv,
+    pifCount,
+    splitCount,
+    pifPct,
+    splitPct,
   }
 }
 
