@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { KpiCard } from '@/components/ui/card'
 import { SkeletonPage } from '@/components/ui/skeleton'
 import { eur, formatDate } from '@/lib/format'
@@ -9,8 +9,9 @@ import type { Call, CallFilters, SalesMetrics } from '@/lib/queries/sales'
 import {
   Phone, TrendingUp, TrendingDown, DollarSign, Target,
   UserX, CalendarX, ArrowUpRight, ArrowDownRight, Minus,
-  Filter, X,
+  Filter, X, User,
 } from 'lucide-react'
+import { DealsPerWeekChart, RevenuePerCloserChart, ResultVerdelingChart } from './components/sales-charts'
 
 const iconProps = { strokeWidth: 1.75 } as const
 
@@ -117,6 +118,7 @@ export default function SalesOverview() {
   const [dateTo, setDateTo] = useState('')
   const [sourceFilter, setSourceFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
+  const [closerFilter, setCloserFilter] = useState('')
 
   useEffect(() => {
     getAllCalls().then(data => {
@@ -125,10 +127,18 @@ export default function SalesOverview() {
     })
   }, [])
 
+  const closers = useMemo(() =>
+    [...new Set(allCalls.map(c => c.closer?.name).filter(Boolean))].sort() as string[],
+    [allCalls]
+  )
+
   // Filter calls client-side for responsiveness
   const filteredCalls = useMemo(() => {
     let calls = allCalls
 
+    if (closerFilter) {
+      calls = calls.filter(c => c.closer?.name === closerFilter)
+    }
     if (sourceFilter) {
       calls = calls.filter(c => c.source === sourceFilter)
     }
@@ -136,7 +146,6 @@ export default function SalesOverview() {
       calls = calls.filter(c => c.source_type === typeFilter)
     }
 
-    const now = new Date()
     const currentFilters = getCurrentPeriodFilters(period, dateFrom, dateTo)
 
     if (currentFilters.week) {
@@ -153,13 +162,14 @@ export default function SalesOverview() {
     }
 
     return calls
-  }, [allCalls, period, dateFrom, dateTo, sourceFilter, typeFilter])
+  }, [allCalls, period, dateFrom, dateTo, sourceFilter, typeFilter, closerFilter])
 
   // Previous period calls for comparison
   const previousCalls = useMemo(() => {
     if (period === 'all') return []
 
     let calls = allCalls
+    if (closerFilter) calls = calls.filter(c => c.closer?.name === closerFilter)
     if (sourceFilter) calls = calls.filter(c => c.source === sourceFilter)
     if (typeFilter) calls = calls.filter(c => c.source_type === typeFilter)
 
@@ -179,7 +189,7 @@ export default function SalesOverview() {
     }
 
     return calls
-  }, [allCalls, period, dateFrom, dateTo, sourceFilter, typeFilter])
+  }, [allCalls, period, dateFrom, dateTo, sourceFilter, typeFilter, closerFilter])
 
   const metrics = useMemo(() => calculateMetrics(filteredCalls), [filteredCalls])
   const prevMetrics = useMemo(() => calculateMetrics(previousCalls), [previousCalls])
@@ -187,6 +197,7 @@ export default function SalesOverview() {
   const sources = useMemo(() => [...new Set(allCalls.map(c => c.source).filter(Boolean))].sort(), [allCalls])
   const types = useMemo(() => [...new Set(allCalls.map(c => c.source_type).filter(Boolean))].sort(), [allCalls])
   const hasPreviousPeriod = period !== 'all'
+  const hasActiveFilters = sourceFilter || typeFilter || closerFilter || period !== 'all'
 
   if (loading) return <SkeletonPage />
 
@@ -209,6 +220,19 @@ export default function SalesOverview() {
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <div className="flex items-center gap-1.5">
           <Filter className="w-4 h-4 text-gray-400" {...iconProps} />
+        </div>
+
+        {/* Closer filter */}
+        <div className="relative">
+          <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" {...iconProps} />
+          <select
+            value={closerFilter}
+            onChange={e => setCloserFilter(e.target.value)}
+            className="h-9 text-sm border border-gray-200 rounded-lg pl-8 pr-3 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-accent-500 appearance-none cursor-pointer"
+          >
+            <option value="">Alle closers</option>
+            {closers.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
         </div>
 
         {/* Time period */}
@@ -271,9 +295,9 @@ export default function SalesOverview() {
           {types.map(t => <option key={t} value={t!}>{t}</option>)}
         </select>
 
-        {(sourceFilter || typeFilter || period !== 'all') && (
+        {hasActiveFilters && (
           <button
-            onClick={() => { setSourceFilter(''); setTypeFilter(''); setPeriod('all'); setDateFrom(''); setDateTo('') }}
+            onClick={() => { setCloserFilter(''); setSourceFilter(''); setTypeFilter(''); setPeriod('all'); setDateFrom(''); setDateTo('') }}
             className="h-9 px-3 text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 transition-colors duration-[120ms]"
           >
             <X className="w-3.5 h-3.5" {...iconProps} />
@@ -347,15 +371,26 @@ export default function SalesOverview() {
         />
       </div>
 
-      {/* Secondary stats row */}
-      <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4">
-        <MiniStat label="NO SHOW" value={metrics.noShows} invert />
-        <MiniStat label="CANCELLED" value={metrics.cancelled} invert />
-        <MiniStat label="LOST - BROKE" value={metrics.lostBroke} invert />
-        <MiniStat label="LOST - NO INTEREST" value={metrics.lostNoInterest} invert />
-        <MiniStat label="LOST - BAD FIT" value={metrics.lostBadFit} invert />
-        <MiniStat label="FOLLOW UPS" value={metrics.followUps} />
-        <MiniStat label="DEPOSITS" value={metrics.deposits} />
+      {/* Charts: 3 columns */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="bg-white rounded-lg border border-gray-200 p-5">
+          <h3 className="text-sm font-semibold text-gray-900 mb-3">Calls per week</h3>
+          <div className="h-[280px]">
+            <DealsPerWeekChart calls={filteredCalls} />
+          </div>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 p-5">
+          <h3 className="text-sm font-semibold text-gray-900 mb-3">Omzet per closer</h3>
+          <div className="h-[280px]">
+            <RevenuePerCloserChart calls={filteredCalls} />
+          </div>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 p-5">
+          <h3 className="text-sm font-semibold text-gray-900 mb-3">Resultaat verdeling</h3>
+          <div className="h-[280px]">
+            <ResultVerdelingChart calls={filteredCalls} />
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -381,21 +416,6 @@ function MetricCard({ label, value, prev, rawCurrent, rawPrev }: {
           <ChangeIndicator current={currentNum} previous={previousNum!} />
         </div>
       )}
-    </div>
-  )
-}
-
-function MiniStat({ label, value, invert = false }: {
-  label: string
-  value: number
-  invert?: boolean
-}) {
-  return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4">
-      <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide mb-0.5">{label}</div>
-      <div className={`text-lg font-semibold tabular-nums ${value > 0 && invert ? 'text-red-600' : 'text-gray-900'}`}>
-        {value}
-      </div>
     </div>
   )
 }
