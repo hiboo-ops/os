@@ -1,8 +1,20 @@
+import { redirect } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { getAuthUser } from '@/lib/auth'
+import type { UserRole } from '@/lib/auth'
 import { KpiCard } from '@/components/ui/card'
 import { Users, Target, ClipboardCheck, CreditCard } from 'lucide-react'
 
 export const revalidate = 30
+
+// Niet-admins landen op hun eigen startpagina i.p.v. het bedrijfsbrede dashboard.
+const ROLE_HOME: Partial<Record<UserRole, string>> = {
+  CLOSER: '/sales',
+  SETTER: '/sales/pipeline',
+  FINANCE: '/finance',
+  PARTNER_MANAGER: '/creators',
+  COACH: '/delivery',
+}
 
 async function getStats() {
   const [clients, leads, deals, payments] = await Promise.all([
@@ -26,6 +38,12 @@ async function getStats() {
 }
 
 export default async function DashboardPage() {
+  const user = await getAuthUser()
+  if (user) {
+    const home = ROLE_HOME[user.role]
+    if (home) redirect(home)
+  }
+
   const stats = await getStats()
 
   return (

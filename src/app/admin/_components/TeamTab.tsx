@@ -7,7 +7,7 @@ import { SlideOver } from '@/components/ui/slide-over'
 import { Plus, Pencil } from 'lucide-react'
 
 const iconProps = { strokeWidth: 1.75 } as const
-const ROLES = ['ADMIN', 'CLOSER', 'SETTER', 'COACH', 'FINANCE'] as const
+const ROLES = ['ADMIN', 'CLOSER', 'SETTER', 'COACH', 'FINANCE', 'PARTNER_MANAGER'] as const
 
 interface TeamMember {
   id: string
@@ -166,7 +166,7 @@ function AddMemberSlideOver({ onClose, onSaved }: { onClose: () => void; onSaved
             {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
           <p className="text-[10px] text-gray-400 mt-1">
-            ADMIN: volledige toegang · SETTER: leads · CLOSER: sales · COACH: delivery · FINANCE: financien
+            ADMIN: volledige toegang · CLOSER: sales (eigen) · SETTER: booked calls + EOD (eigen) · FINANCE: finance · PARTNER_MANAGER: creators + partner · COACH: delivery
           </p>
         </Field>
         {error && <div className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</div>}

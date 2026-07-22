@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
-type UserRole = 'ADMIN' | 'CLOSER' | 'SETTER' | 'COACH' | 'FINANCE'
+type UserRole = 'ADMIN' | 'CLOSER' | 'SETTER' | 'COACH' | 'FINANCE' | 'PARTNER_MANAGER'
 
 interface NavItem {
   href: string
@@ -22,37 +22,50 @@ interface NavItem {
 }
 
 const nav: NavItem[] = [
-  { href: '/', label: 'Dashboard', icon: BarChart3 },
-  { href: '/clients', label: 'Clients', icon: Users, roles: ['ADMIN', 'FINANCE'] },
+  { href: '/', label: 'Dashboard', icon: BarChart3, roles: ['ADMIN'] },
+  { href: '/clients', label: 'Clients', icon: Users, roles: ['ADMIN'] },
   {
-    href: '/leads', label: 'Leads', icon: Target, roles: ['ADMIN', 'SETTER'],
+    href: '/leads', label: 'Leads', icon: Target, roles: ['ADMIN'],
     children: [
       { href: '/leads', label: 'Board', icon: Kanban },
       { href: '/leads/analytics', label: 'Analytics', icon: BarChart3 },
     ],
   },
-  { href: '/eod/setter', label: 'Setters', icon: ClipboardList, roles: ['ADMIN', 'SETTER'] },
   {
     href: '/sales', label: 'Sales', icon: Phone, roles: ['ADMIN', 'CLOSER'],
     children: [
-      { href: '/sales', label: 'Overview', icon: LayoutDashboard },
-      { href: '/sales/pipeline', label: 'Pipeline', icon: Kanban },
-      { href: '/sales/today', label: 'Today', icon: CalendarDays },
-      { href: '/sales/installments', label: 'Installments', icon: CreditCard },
-      { href: '/sales/deals', label: 'Deals', icon: Handshake },
+      { href: '/sales', label: 'Overview', icon: LayoutDashboard, roles: ['ADMIN', 'CLOSER'] },
+      { href: '/sales/pipeline', label: 'Pipeline', icon: Kanban, roles: ['ADMIN', 'CLOSER'] },
+      { href: '/sales/today', label: 'Today', icon: CalendarDays, roles: ['ADMIN', 'CLOSER'] },
+      { href: '/sales/installments', label: 'Installments', icon: CreditCard, roles: ['ADMIN'] },
+      { href: '/sales/deals', label: 'Deals', icon: Handshake, roles: ['ADMIN'] },
+    ],
+  },
+  {
+    href: '/sales/pipeline', label: 'Setting', icon: ListChecks, roles: ['SETTER'],
+    children: [
+      { href: '/sales/pipeline', label: 'Booked calls', icon: Kanban },
+      { href: '/eod/setter', label: 'EOD', icon: ClipboardList },
     ],
   },
   {
     href: '/finance', label: 'Finance', icon: DollarSign, roles: ['ADMIN', 'FINANCE'],
     children: [
-      { href: '/finance', label: 'Overzicht', icon: LayoutDashboard },
-      { href: '/finance/collections', label: 'Collections', icon: Inbox },
-      { href: '/finance/accounts', label: 'Accounts', icon: Users },
-      { href: '/finance/verificatie', label: 'Verificatie', icon: ClipboardCheck },
-      { href: '/eod/finance', label: 'EOD', icon: ClipboardList },
+      { href: '/finance', label: 'Overzicht', icon: LayoutDashboard, roles: ['ADMIN', 'FINANCE'] },
+      { href: '/finance/collections', label: 'Collections', icon: Inbox, roles: ['ADMIN', 'FINANCE'] },
+      { href: '/finance/accounts', label: 'Accounts', icon: Users, roles: ['ADMIN', 'FINANCE'] },
+      { href: '/finance/verificatie', label: 'Verificatie', icon: ClipboardCheck, roles: ['ADMIN'] },
+      { href: '/eod/finance', label: 'EOD', icon: ClipboardList, roles: ['ADMIN', 'FINANCE'] },
     ],
   },
-  { href: '/eod/partner-manager', label: 'Partner Manager', icon: Handshake, roles: ['ADMIN'] },
+  {
+    href: '/creators', label: 'Creators', icon: Megaphone, roles: ['ADMIN', 'PARTNER_MANAGER'],
+    children: [
+      { href: '/creators', label: 'Overzicht', icon: LayoutDashboard },
+      { href: '/eod/creator', label: 'EOD', icon: ClipboardList },
+    ],
+  },
+  { href: '/eod/partner-manager', label: 'Partner Manager', icon: Handshake, roles: ['ADMIN', 'PARTNER_MANAGER'] },
   {
     href: '/delivery', label: 'Delivery', icon: GraduationCap, roles: ['ADMIN', 'COACH'],
     children: [
@@ -61,13 +74,6 @@ const nav: NavItem[] = [
       { href: '/delivery/werklijst', label: 'Werklijst', icon: ListChecks },
       { href: '/delivery/course-only', label: 'Course Only', icon: BookOpen },
       { href: '/delivery/backfill', label: 'Backfill', icon: FileEdit },
-    ],
-  },
-  {
-    href: '/creators', label: 'Creators', icon: Megaphone, roles: ['ADMIN'],
-    children: [
-      { href: '/creators', label: 'Overzicht', icon: LayoutDashboard },
-      { href: '/eod/creator', label: 'EOD', icon: ClipboardList },
     ],
   },
   { href: '/eod', label: 'EOD Overzicht', icon: ClipboardCheck, roles: ['ADMIN'] },
@@ -80,6 +86,7 @@ export function Sidebar() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     '/delivery': pathname.startsWith('/delivery'),
     '/sales': pathname.startsWith('/sales'),
+    '/sales/pipeline': pathname.startsWith('/sales/pipeline') || pathname === '/eod/setter',
     '/leads': pathname.startsWith('/leads'),
     '/finance': pathname.startsWith('/finance') || pathname === '/eod/finance',
     '/creators': pathname.startsWith('/creators') || pathname === '/eod/creator',

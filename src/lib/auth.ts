@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
-export type UserRole = 'ADMIN' | 'CLOSER' | 'SETTER' | 'COACH' | 'FINANCE'
+export type UserRole = 'ADMIN' | 'CLOSER' | 'SETTER' | 'COACH' | 'FINANCE' | 'PARTNER_MANAGER'
 
 export interface AuthUser {
   id: string

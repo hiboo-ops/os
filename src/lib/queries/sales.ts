@@ -110,6 +110,25 @@ export interface DealWithContract {
 
 // ── QUERIES ──
 
+// Rolgebaseerde eigen-data-filter: closers/setters zien alleen hun eigen calls.
+// Draait client-side op de browser-client; ADMIN en overige rollen zien alles.
+// (Echte isolatie vereist RLS — apart traject; dit stuurt de UI.)
+async function currentUserCallFilter(): Promise<{ closerId?: string; setterId?: string } | null> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const { data: member } = await supabase
+    .from('team_members')
+    .select('role, closer_id, setter_id')
+    .eq('user_id', user.id)
+    .eq('active', true)
+    .single()
+  if (!member) return null
+  const m = member as unknown as { role: string; closer_id: string | null; setter_id: string | null }
+  if (m.role === 'CLOSER' && m.closer_id) return { closerId: m.closer_id }
+  if (m.role === 'SETTER' && m.setter_id) return { setterId: m.setter_id }
+  return null
+}
+
 export async function getAllCalls(filters?: CallFilters): Promise<Call[]> {
   let query = supabase
     .from('calls')
@@ -119,6 +138,10 @@ export async function getAllCalls(filters?: CallFilters): Promise<Call[]> {
       setter:setters(id, name)
     `)
     .order('date_start_time', { ascending: false })
+
+  const own = await currentUserCallFilter()
+  if (own?.closerId) query = query.eq('closer_id', own.closerId)
+  if (own?.setterId) query = query.eq('setter_id', own.setterId)
 
   if (filters?.week) {
     query = query.eq('week', filters.week)
@@ -184,7 +207,7 @@ export async function getTodayCalls(dayOffset: number = 0): Promise<Call[]> {
   target.setDate(target.getDate() + dayOffset)
   const dateStr = target.toISOString().split('T')[0]
 
-  const { data } = await supabase
+  let query = supabase
     .from('calls')
     .select(`
       *,
@@ -195,6 +218,11 @@ export async function getTodayCalls(dayOffset: number = 0): Promise<Call[]> {
     .lt('date_start_time', dateStr + 'T23:59:59')
     .order('date_start_time', { ascending: true })
 
+  const own = await currentUserCallFilter()
+  if (own?.closerId) query = query.eq('closer_id', own.closerId)
+  if (own?.setterId) query = query.eq('setter_id', own.setterId)
+
+  const { data } = await query
   return (data || []) as unknown as Call[]
 }
 
