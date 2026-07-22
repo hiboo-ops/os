@@ -123,10 +123,11 @@ export async function PATCH(req: NextRequest) {
   const denied = requireRole(user, ['ADMIN', 'CLOSER', 'FINANCE'])
   if (denied) return denied
 
-  const { incoming_payment_id, url, generate } = await req.json() as {
+  const { incoming_payment_id, url, generate, amount } = await req.json() as {
     incoming_payment_id?: string
     url?: string
     generate?: boolean
+    amount?: number
   }
 
   if (!incoming_payment_id) {
@@ -134,6 +135,14 @@ export async function PATCH(req: NextRequest) {
   }
 
   const admin = getSupabaseAdmin()
+
+  // Optioneel het bedrag bijwerken (bijv. deposit-bedrag aangepast vóór genereren).
+  if (amount != null && Number(amount) > 0) {
+    await admin
+      .from('incoming_payments')
+      .update({ amount: Number(amount), updated_at: new Date().toISOString() })
+      .eq('id', incoming_payment_id)
+  }
 
   let newUrl: string | null = url?.trim() || null
   let provider = 'MANUAL'

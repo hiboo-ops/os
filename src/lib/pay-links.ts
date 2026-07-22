@@ -65,6 +65,7 @@ async function generateWhopPayLink(
         currency: 'eur',
         initial_price: amount,
         visibility: 'quick_link',
+        unlimited_stock: true,
         metadata: {
           incoming_payment_id: incomingPaymentId,
           pay_token: payToken,

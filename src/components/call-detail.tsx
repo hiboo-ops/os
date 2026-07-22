@@ -192,6 +192,10 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
   // ── Derived (payments) ──
   const contextFirstPayment = context?.payments.find(p => p.installment_number === 1) ?? context?.payments[0] ?? null
   const collected = (context?.payments ?? []).filter(p => p.status === 'PAID').reduce((s, p) => s + Number(p.amount), 0)
+  // First Deposit-veld vullen met het bedrag van de bestaande eerste betaling (indien nog leeg)
+  useEffect(() => {
+    if (contextFirstPayment && payAmount === '') setPayAmount(Number(contextFirstPayment.amount))
+  }, [contextFirstPayment]) // eslint-disable-line react-hooks/exhaustive-deps
   const dealTotal = Number(context?.contract?.deal_value ?? (dealValue === '' ? 0 : dealValue)) || 0
   const collectedPct = dealTotal > 0 ? Math.round((collected / dealTotal) * 100) : 0
   const recentLink = (() => {
@@ -275,26 +279,29 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
     } finally { setRowBusy(null) }
   }
 
-  // Top-level "Generate Whop Link": genereer voor de eerste betaling, of maak er een aan
+  // Top-level "Generate Whop Link": gebruikt het First Deposit-bedrag.
+  // Bestaande eerste betaling → bedrag bijwerken + genereren; anders nieuw aanmaken.
   const generateWhopTopLevel = async () => {
+    if (!payAmount || payAmount <= 0) { alert('Vul een First Deposit-bedrag in'); return }
     setPayGenerating(true)
     try {
-      if (contextFirstPayment) {
-        await generateForPayment(contextFirstPayment.id)
+      const res = contextFirstPayment
+        ? await fetch('/api/payment-links', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ incoming_payment_id: contextFirstPayment.id, amount: payAmount, generate: true }),
+          })
+        : await fetch('/api/payment-links', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ call_id: call.id, amount: payAmount, provider: 'WHOP' }),
+          })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        alert(d.error || 'Whop-link genereren mislukt')
       } else {
-        if (!payAmount || payAmount <= 0) { alert('Vul een First Deposit-bedrag in'); return }
-        const res = await fetch('/api/payment-links', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ call_id: call.id, amount: payAmount, provider: 'WHOP' }),
-        })
-        if (!res.ok) {
-          const d = await res.json().catch(() => ({}))
-          alert(d.error || 'Whop-link genereren mislukt')
-        } else {
-          await loadContext()
-          onUpdate()
-        }
+        await loadContext()
+        onUpdate()
       }
     } finally { setPayGenerating(false) }
   }
