@@ -61,6 +61,19 @@ const TRENDS: { key: string; label: string; get: (a: Answers) => number }[] = [
   { key: 'positief', label: 'Positieve reacties per dag', get: a => num(a.conversies?.positieve_reacties) },
 ]
 
+// Conversieratio's over de funnel: outbounds → replies → positief → gekwalificeerd → geboekt.
+// `num`/`den` indexeren de eigen totalen; `bNum`/`bDen` de team-benchmark (perDayAvg).
+type TotalKey = 'outbounds' | 'replies' | 'positief' | 'gekwalificeerd' | 'geboekt' | 'calendly'
+const CONVERSIONS: { key: string; label: string; hint: string; num: TotalKey; den: TotalKey; bNum: BenchKey; bDen: BenchKey }[] = [
+  { key: 'reply', label: 'Reply-rate', hint: 'replies ÷ outbounds', num: 'replies', den: 'outbounds', bNum: 'replies_outbound', bDen: 'nieuwe_outbounds' },
+  { key: 'positief', label: 'Positief v. replies', hint: 'positief ÷ replies', num: 'positief', den: 'replies', bNum: 'positieve_reacties', bDen: 'replies_outbound' },
+  { key: 'kwal', label: 'Kwalificatie', hint: 'gekwalificeerd ÷ positief', num: 'gekwalificeerd', den: 'positief', bNum: 'leads_gekwalificeerd', bDen: 'positieve_reacties' },
+  { key: 'boeking', label: 'Boeking v. gekwal.', hint: 'geboekt ÷ gekwalificeerd', num: 'geboekt', den: 'gekwalificeerd', bNum: 'calls_geboekt', bDen: 'leads_gekwalificeerd' },
+  { key: 'calendly', label: 'Calendly-conversie', hint: 'geboekt ÷ links', num: 'geboekt', den: 'calendly', bNum: 'calls_geboekt', bDen: 'calendly_links_gestuurd' },
+  { key: 'ob2call', label: 'Outbound → call', hint: 'geboekt ÷ outbounds', num: 'geboekt', den: 'outbounds', bNum: 'calls_geboekt', bDen: 'nieuwe_outbounds' },
+]
+const pct = (numr: number, den: number) => (den > 0 ? Math.round((numr / den) * 100) : 0)
+
 export default function SetterEodDashboardPage() {
   const [dateFrom, setDateFrom] = useState(() => daysAgoString(7))
   const [dateTo, setDateTo] = useState(todayString)
@@ -123,6 +136,17 @@ export default function SetterEodDashboardPage() {
   const byDate: Record<string, Answers> = {}
   for (const r of reports) byDate[r.report_date] = r.answers || {}
   const trendLabels = rangeDays.map(d => formatDateShort(d))
+
+  // Totalen voor conversieratio's (som over de periode).
+  const sumOf = (get: (a: Answers) => number) => reports.reduce((s, r) => s + get(r.answers as Answers), 0)
+  const totals: Record<TotalKey, number> = {
+    outbounds: sumOf(a => num(a.activiteit?.nieuwe_outbounds)),
+    replies: sumOf(a => num(a.conversies?.replies_outbound)),
+    positief: sumOf(a => num(a.conversies?.positieve_reacties)),
+    gekwalificeerd: sumOf(a => num(a.conversies?.leads_gekwalificeerd)),
+    geboekt: sumOf(a => num(a.calls?.calls_geboekt_inbound) + num(a.calls?.calls_geboekt_outbound)),
+    calendly: sumOf(a => num(a.calls?.calendly_links_gestuurd)),
+  }
 
   return (
     <div>
@@ -218,6 +242,35 @@ export default function SetterEodDashboardPage() {
               return <KpiCard key={m.key} label={m.label} value={total} caption={caption} captionColor={captionColor} />
             })}
           </div>
+
+          {/* Conversieratio's */}
+          <Card className="mb-6">
+            <CardHeader>
+              <h2 className="text-sm font-semibold text-gray-900">Conversieratio&apos;s</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Funnel: outbounds → replies → positief → gekwalificeerd → geboekt</p>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 divide-x divide-y divide-gray-100">
+                {CONVERSIONS.map(c => {
+                  const own = pct(totals[c.num], totals[c.den])
+                  const teamAvg = benchmark ? pct(benchmark.perDayAvg[c.bNum], benchmark.perDayAvg[c.bDen]) : null
+                  const good = teamAvg !== null && own >= teamAvg
+                  return (
+                    <div key={c.key} className="p-4">
+                      <div className="text-xs font-medium text-gray-500">{c.label}</div>
+                      <div className="text-2xl font-bold text-gray-900 tabular-nums mt-1">{own}%</div>
+                      <div className="text-[11px] text-gray-400 mt-0.5">{c.hint}</div>
+                      {teamAvg !== null && (
+                        <div className={`text-[11px] mt-1 ${good ? 'text-emerald-600' : 'text-amber-600'}`}>
+                          team {teamAvg}%
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Trend-grafieken */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

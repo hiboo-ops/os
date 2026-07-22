@@ -127,6 +127,7 @@ export interface SetterBenchmark {
   perDayAvg: {
     nieuwe_outbounds: number
     follow_ups: number
+    replies_outbound: number
     positieve_reacties: number
     leads_gekwalificeerd: number
     calls_geboekt: number
@@ -155,6 +156,7 @@ export async function getSetterTeamBenchmark(
   const sum = {
     nieuwe_outbounds: 0,
     follow_ups: 0,
+    replies_outbound: 0,
     positieve_reacties: 0,
     leads_gekwalificeerd: 0,
     calls_geboekt: 0,
@@ -165,6 +167,7 @@ export async function getSetterTeamBenchmark(
     const a = r.answers || {}
     sum.nieuwe_outbounds += numVal(a.activiteit?.nieuwe_outbounds)
     sum.follow_ups += numVal(a.activiteit?.follow_ups)
+    sum.replies_outbound += numVal(a.conversies?.replies_outbound)
     sum.positieve_reacties += numVal(a.conversies?.positieve_reacties)
     sum.leads_gekwalificeerd += numVal(a.conversies?.leads_gekwalificeerd)
     sum.calls_geboekt += numVal(a.calls?.calls_geboekt_inbound) + numVal(a.calls?.calls_geboekt_outbound)
@@ -179,6 +182,7 @@ export async function getSetterTeamBenchmark(
     perDayAvg: {
       nieuwe_outbounds: avg(sum.nieuwe_outbounds),
       follow_ups: avg(sum.follow_ups),
+      replies_outbound: avg(sum.replies_outbound),
       positieve_reacties: avg(sum.positieve_reacties),
       leads_gekwalificeerd: avg(sum.leads_gekwalificeerd),
       calls_geboekt: avg(sum.calls_geboekt),
