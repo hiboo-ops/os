@@ -78,8 +78,8 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
   const [result, setResult] = useState<CallResult | ''>(call.result || '')
   const [closingNotes, setClosingNotes] = useState(call.closing_notes || '')
   const [noDealReason, setNoDealReason] = useState(call.no_deal_reason || '')
-  const [dealValue, setDealValue] = useState<number | ''>(call.deal_value ?? '')
-  const [cashCollected, setCashCollected] = useState<number | ''>(call.cash_collected ?? '')
+  // Deal value uit contract (fallback call); niet meer editable hier.
+  const dealValue: number | '' = call.deal_value ?? ''
 
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -209,6 +209,7 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
   const hasQuestions = call.questions && (Array.isArray(call.questions) ? call.questions.length > 0 : Object.keys(call.questions).length > 0)
   const quiz = context?.lead?.quiz_answers
   const hasQuiz = quiz && quiz.length > 0
+  const triageNotes = [call.triage_notes, context?.lead?.triage_notes].filter(Boolean).join('\n\n')
 
   // ── Actions ──
   const copy = (text: string, key: string) => {
@@ -231,8 +232,6 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
           result: result || null,
           closing_notes: closingNotes || null,
           no_deal_reason: noDealReason || null,
-          deal_value: dealValue === '' ? null : dealValue,
-          cash_collected: cashCollected === '' ? null : cashCollected,
         }),
       })
       setSaved(true)
@@ -437,17 +436,17 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
             </Row>
           </Section>
 
-          {/* Deal Value + Cash */}
-          <Section title="Deal">
-            <Row label="Deal Value">
-              <div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">EUR</span>
-                <input type="number" value={dealValue} onChange={e => setDealValue(e.target.value === '' ? '' : Number(e.target.value))} className={`pl-12 tabular-nums ${inputCls}`} /></div>
-            </Row>
-            <Row label="Cash Collected" last>
-              <div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">EUR</span>
-                <input type="number" value={cashCollected} onChange={e => setCashCollected(e.target.value === '' ? '' : Number(e.target.value))} className={`pl-12 tabular-nums ${inputCls}`} /></div>
-            </Row>
-          </Section>
+          {/* Setter / Triage notes — alleen als gevuld */}
+          {call.setter_notes && (
+            <Section title="Setter Notes">
+              <div className="py-3.5 text-sm text-gray-700 whitespace-pre-wrap">{call.setter_notes}</div>
+            </Section>
+          )}
+          {triageNotes && (
+            <Section title="Triage Notes">
+              <div className="py-3.5 text-sm text-gray-700 whitespace-pre-wrap">{triageNotes}</div>
+            </Section>
+          )}
 
           {/* Payment Progress */}
           {dealTotal > 0 && (
