@@ -84,6 +84,7 @@ export async function PATCH(req: NextRequest) {
   const allowed = [
     'status', 'amount', 'due_date', 'stripe_link', 'whop_link',
     'is_manual', 'screenshot_url', 'verification_status', 'verified_by',
+    'collection_status', 'promise_to_pay_date', 'last_contact_at',
   ]
   const safeUpdates: Record<string, unknown> = { updated_at: new Date().toISOString() }
   for (const key of allowed) {
