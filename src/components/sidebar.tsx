@@ -6,7 +6,7 @@ import {
   BarChart3, Users, Target, DollarSign, GraduationCap,
   Megaphone, ClipboardCheck, Menu, X, LayoutDashboard,
   Columns3, ListChecks, FileEdit, ChevronDown, BookOpen,
-  Phone, Kanban, CalendarDays, CreditCard, Handshake, Calendar,
+  Phone, Kanban, CalendarDays, Handshake, Calendar,
   ClipboardList, Inbox
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
@@ -37,8 +37,6 @@ const nav: NavItem[] = [
       { href: '/sales', label: 'Overview', icon: LayoutDashboard, roles: ['ADMIN', 'CLOSER'] },
       { href: '/sales/pipeline', label: 'Pipeline', icon: Kanban, roles: ['ADMIN', 'CLOSER'] },
       { href: '/sales/today', label: 'Today', icon: CalendarDays, roles: ['ADMIN', 'CLOSER'] },
-      { href: '/sales/installments', label: 'Installments', icon: CreditCard, roles: ['ADMIN'] },
-      { href: '/sales/deals', label: 'Deals', icon: Handshake, roles: ['ADMIN'] },
     ],
   },
   {
