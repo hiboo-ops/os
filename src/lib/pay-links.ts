@@ -61,6 +61,7 @@ async function generateWhopPayLink(
         company_id: companyId,
         product_id: productId,
         plan_type: 'one_time',
+        base_currency: 'eur',
         currency: 'eur',
         initial_price: amount,
         visibility: 'quick_link',
@@ -76,6 +77,11 @@ async function generateWhopPayLink(
       console.error('Whop plan-creatie mislukt:', res.status, data)
       return null
     }
+    console.log('[whop] plan aangemaakt:', {
+      id: (data as { id?: string }).id,
+      base_currency: (data as { base_currency?: string }).base_currency,
+      initial_price: (data as { initial_price?: unknown }).initial_price,
+    })
 
     const url =
       (data as { purchase_url?: string }).purchase_url ||
