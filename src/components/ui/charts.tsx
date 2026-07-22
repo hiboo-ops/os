@@ -84,6 +84,40 @@ export function LeadsSparkline({ labels, data }: { labels: string[]; data: numbe
   )
 }
 
+// Generieke dag-trend (bar) met neutrale tooltip — voor EOD-dashboards e.d.
+export function DailyBarChart({ labels, data, unit }: { labels: string[]; data: number[]; unit?: string }) {
+  return (
+    <Bar
+      data={{
+        labels,
+        datasets: [{
+          data,
+          backgroundColor: ACCENT,
+          borderRadius: 4,
+          barPercentage: 0.6,
+          categoryPercentage: 0.7,
+        }],
+      }}
+      options={{
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => `${ctx.parsed.y}${unit ? ' ' + unit : ''}` } },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            grid: { color: '#f1f5f9' },
+            ticks: { font: { size: 11 }, color: '#94a3b8', precision: 0 },
+          },
+          x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#94a3b8' } },
+        },
+      }}
+    />
+  )
+}
+
 // ── Collection Charts ──
 
 const eurTooltip = { callbacks: { label: (ctx: { parsed: { y: number | null }; dataset: { label?: string } }) => `${ctx.dataset.label || ''}: € ${Number(ctx.parsed.y ?? 0).toLocaleString('nl-NL')}` } }

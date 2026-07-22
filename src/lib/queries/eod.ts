@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { getSupabaseAdmin } from '@/lib/supabase-admin'
 
 /**
  * EOD answers JSONB conventie:
@@ -113,4 +114,75 @@ export async function listEodReports(filters: EodListFilters): Promise<EodReport
 
   const { data } = await query
   return (data as unknown as EodReport[]) || []
+}
+
+// ── Team-benchmark (setters) ──
+// Geeft UITSLUITEND geaggregeerde gemiddelden per setter-dag terug — nooit
+// individuele rapporten/namen. Server-side (admin-client) zodat een setter een
+// veilige teamvergelijking krijgt zonder andermans data te zien.
+
+export interface SetterBenchmark {
+  reportCount: number
+  setterCount: number
+  perDayAvg: {
+    nieuwe_outbounds: number
+    follow_ups: number
+    positieve_reacties: number
+    leads_gekwalificeerd: number
+    calls_geboekt: number
+    calendly_links_gestuurd: number
+  }
+}
+
+const numVal = (v: unknown) => Number(v) || 0
+
+export async function getSetterTeamBenchmark(
+  dateFrom: string,
+  dateTo: string
+): Promise<SetterBenchmark> {
+  const admin = getSupabaseAdmin()
+  const { data } = await admin
+    .from('eod_reports')
+    .select('team_member_id, answers')
+    .eq('role_type', 'SETTER')
+    .gte('report_date', dateFrom)
+    .lte('report_date', dateTo)
+
+  const rows = (data as unknown as { team_member_id: string; answers: Record<string, Record<string, unknown>> }[]) || []
+  const reportCount = rows.length
+  const setterCount = new Set(rows.map(r => r.team_member_id)).size
+
+  const sum = {
+    nieuwe_outbounds: 0,
+    follow_ups: 0,
+    positieve_reacties: 0,
+    leads_gekwalificeerd: 0,
+    calls_geboekt: 0,
+    calendly_links_gestuurd: 0,
+  }
+
+  for (const r of rows) {
+    const a = r.answers || {}
+    sum.nieuwe_outbounds += numVal(a.activiteit?.nieuwe_outbounds)
+    sum.follow_ups += numVal(a.activiteit?.follow_ups)
+    sum.positieve_reacties += numVal(a.conversies?.positieve_reacties)
+    sum.leads_gekwalificeerd += numVal(a.conversies?.leads_gekwalificeerd)
+    sum.calls_geboekt += numVal(a.calls?.calls_geboekt_inbound) + numVal(a.calls?.calls_geboekt_outbound)
+    sum.calendly_links_gestuurd += numVal(a.calls?.calendly_links_gestuurd)
+  }
+
+  const avg = (total: number) => (reportCount > 0 ? Math.round((total / reportCount) * 10) / 10 : 0)
+
+  return {
+    reportCount,
+    setterCount,
+    perDayAvg: {
+      nieuwe_outbounds: avg(sum.nieuwe_outbounds),
+      follow_ups: avg(sum.follow_ups),
+      positieve_reacties: avg(sum.positieve_reacties),
+      leads_gekwalificeerd: avg(sum.leads_gekwalificeerd),
+      calls_geboekt: avg(sum.calls_geboekt),
+      calendly_links_gestuurd: avg(sum.calendly_links_gestuurd),
+    },
+  }
 }

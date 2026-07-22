@@ -45,7 +45,8 @@ const nav: NavItem[] = [
     href: '/sales/pipeline', label: 'Setting', icon: ListChecks, roles: ['SETTER'],
     children: [
       { href: '/sales/pipeline', label: 'Booked calls', icon: Kanban },
-      { href: '/eod/setter', label: 'EOD', icon: ClipboardList },
+      { href: '/eod/setter/dashboard', label: 'EOD dashboard', icon: BarChart3 },
+      { href: '/eod/setter', label: 'EOD invullen', icon: ClipboardList },
     ],
   },
   {
@@ -86,7 +87,7 @@ export function Sidebar() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     '/delivery': pathname.startsWith('/delivery'),
     '/sales': pathname.startsWith('/sales'),
-    '/sales/pipeline': pathname.startsWith('/sales/pipeline') || pathname === '/eod/setter',
+    '/sales/pipeline': pathname.startsWith('/sales/pipeline') || pathname.startsWith('/eod/setter'),
     '/leads': pathname.startsWith('/leads'),
     '/finance': pathname.startsWith('/finance') || pathname === '/eod/finance',
     '/creators': pathname.startsWith('/creators') || pathname === '/eod/creator',
