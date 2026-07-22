@@ -112,7 +112,10 @@ function ChangeIndicator({ current, previous, isPercentage = false, invert = fal
 
 export default function SalesOverview() {
   const [allCalls, setAllCalls] = useState<Call[]>([])
-  const [contractMix, setContractMix] = useState<{ call_id: string | null; count: number }[]>([])
+  const [contractMix, setContractMix] = useState<{
+    contracts: { call_id: string | null; count: number; deal_value: number }[];
+    cashByCall: Record<string, number>;
+  }>({ contracts: [], cashByCall: {} })
   const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState<TimePeriod>('all')
   const [dateFrom, setDateFrom] = useState('')
@@ -126,7 +129,9 @@ export default function SalesOverview() {
       setAllCalls(data)
       setLoading(false)
     })
-    fetch('/api/sales/contract-mix').then(r => r.json()).then(d => setContractMix(Array.isArray(d) ? d : [])).catch(() => {})
+    fetch('/api/sales/contract-mix').then(r => r.json()).then(d => {
+      if (d && d.contracts) setContractMix(d)
+    }).catch(() => {})
   }, [])
 
   const closers = useMemo(() =>
@@ -199,7 +204,7 @@ export default function SalesOverview() {
   // Contract-mix (PIF vs Split) over de gefilterde calls: 1 termijn = PIF, >=2 = Split.
   const contractMixStats = useMemo(() => {
     const ids = new Set(filteredCalls.map(c => c.id))
-    const relevant = contractMix.filter(c => c.call_id && ids.has(c.call_id))
+    const relevant = contractMix.contracts.filter(c => c.call_id && ids.has(c.call_id))
     const total = relevant.length
     const split = relevant.filter(c => c.count >= 2).length
     const pif = total - split
@@ -210,6 +215,20 @@ export default function SalesOverview() {
       pifPct: total > 0 ? Math.round((pif / total) * 100) : 0,
       splitPct: total > 0 ? Math.round((split / total) * 100) : 0,
     }
+  }, [contractMix, filteredCalls])
+
+  // Order value (som contracts.deal_value) + Cash collected (som betaalde payments)
+  // over gefilterde calls — echte bronnen i.p.v. call-velden.
+  const { orderValue, cashCollected } = useMemo(() => {
+    const ids = new Set(filteredCalls.map(c => c.id))
+    const ov = contractMix.contracts
+      .filter(c => c.call_id && ids.has(c.call_id))
+      .reduce((sum, c) => sum + c.deal_value, 0)
+    let cash = 0
+    for (const [callId, amount] of Object.entries(contractMix.cashByCall)) {
+      if (ids.has(callId)) cash += amount
+    }
+    return { orderValue: ov, cashCollected: cash }
   }, [contractMix, filteredCalls])
 
   const sources = useMemo(() => [...new Set(allCalls.map(c => c.source).filter(Boolean))].sort(), [allCalls])
@@ -335,16 +354,14 @@ export default function SalesOverview() {
         />
         <MetricCard
           label="Order value"
-          value={eur(metrics.totalDealValue)}
-          rawCurrent={metrics.totalDealValue}
-          rawPrev={hasPreviousPeriod ? prevMetrics.totalDealValue : undefined}
+          value={eur(orderValue)}
+          rawCurrent={orderValue}
           subtitle={`${metrics.closedDeals} deals`}
         />
         <MetricCard
           label="Cash collected"
-          value={eur(metrics.totalCashCollected)}
-          rawCurrent={metrics.totalCashCollected}
-          rawPrev={hasPreviousPeriod ? prevMetrics.totalCashCollected : undefined}
+          value={eur(cashCollected)}
+          rawCurrent={cashCollected}
         />
         <MetricCard
           label="Closing rate"
