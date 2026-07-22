@@ -214,10 +214,7 @@ export default function PipelinePage() {
         <CallDetail
           call={selectedCall}
           onClose={() => setSelectedCall(null)}
-          onUpdate={() => {
-            setSelectedCall(null)
-            loadCalls()
-          }}
+          onUpdate={() => loadCalls()}
         />
       )}
     </div>

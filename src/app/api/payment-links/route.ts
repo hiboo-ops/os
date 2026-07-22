@@ -113,17 +113,20 @@ export async function POST(req: NextRequest) {
 
 /**
  * PATCH /api/payment-links
- * Handmatige override: zet/plak een betaallink op een bestaande incoming_payment.
- * Closer-toegankelijk maar alleen het link-veld (whop_link) — geen status/bedrag.
+ * Betaallink op een bestaande incoming_payment zetten:
+ *  - { incoming_payment_id, url }      → handmatige link plakken/overschrijven
+ *  - { incoming_payment_id, generate } → automatisch Whop-link genereren (gated)
+ * Closer-toegankelijk, alleen het link-veld.
  */
 export async function PATCH(req: NextRequest) {
   const user = await getAuthUser()
   const denied = requireRole(user, ['ADMIN', 'CLOSER', 'FINANCE'])
   if (denied) return denied
 
-  const { incoming_payment_id, url } = await req.json() as {
+  const { incoming_payment_id, url, generate } = await req.json() as {
     incoming_payment_id?: string
     url?: string
+    generate?: boolean
   }
 
   if (!incoming_payment_id) {
@@ -131,14 +134,38 @@ export async function PATCH(req: NextRequest) {
   }
 
   const admin = getSupabaseAdmin()
+
+  let newUrl: string | null = url?.trim() || null
+  let provider = 'MANUAL'
+
+  if (generate) {
+    const { data: ip } = await admin
+      .from('incoming_payments')
+      .select('id, amount, pay_token')
+      .eq('id', incoming_payment_id)
+      .single()
+    if (!ip) {
+      return NextResponse.json({ error: 'Termijn niet gevonden' }, { status: 404 })
+    }
+    const result = await generatePayLink('WHOP', ip.id, ip.pay_token, Number(ip.amount))
+    newUrl = result.url
+    provider = result.provider
+    if (!newUrl) {
+      return NextResponse.json(
+        { error: 'Whop-link kon niet worden gegenereerd (keys ontbreken of API-fout)', provider },
+        { status: 502 },
+      )
+    }
+  }
+
   const { error } = await admin
     .from('incoming_payments')
-    .update({ whop_link: url?.trim() || null, updated_at: new Date().toISOString() })
+    .update({ whop_link: newUrl, updated_at: new Date().toISOString() })
     .eq('id', incoming_payment_id)
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true, url: url?.trim() || null })
+  return NextResponse.json({ success: true, url: newUrl, provider })
 }

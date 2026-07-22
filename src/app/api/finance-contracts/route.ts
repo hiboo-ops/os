@@ -311,6 +311,8 @@ export async function POST(req: NextRequest) {
       .update({
         esign_contract_id: esignResult.esign_contract_id,
         esign_status: esignResult.esign_status,
+        contract_sent: true,
+        ...(esignResult.sign_url ? { contract_url: esignResult.sign_url } : {}),
       })
       .eq('id', contract.id)
   } else {

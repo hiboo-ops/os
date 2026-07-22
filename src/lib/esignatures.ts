@@ -20,6 +20,7 @@ interface EsignResponse {
       id: string
       status: string
       title: string
+      signers?: { id: string; name: string; sign_page_url?: string }[]
     }
   }
 }
@@ -27,6 +28,7 @@ interface EsignResponse {
 export async function createEsignContract(input: CreateContractInput): Promise<{
   esign_contract_id: string
   esign_status: string
+  sign_url: string | null
 } | null> {
   const token = process.env.ESIGNATURES_SECRET_TOKEN
   const templateId = input.templateId || process.env.ESIGNATURES_TEMPLATE_ID
@@ -76,5 +78,6 @@ export async function createEsignContract(input: CreateContractInput): Promise<{
   return {
     esign_contract_id: json.data.contract.id,
     esign_status: 'SENT',
+    sign_url: json.data.contract.signers?.[0]?.sign_page_url || null,
   }
 }

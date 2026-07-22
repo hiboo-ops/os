@@ -24,7 +24,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
         .maybeSingle(),
       admin
         .from('contracts')
-        .select('id, esign_status, contract_signed, contract_pdf_url, deal_value, payment_plan')
+        .select('id, esign_status, contract_signed, contract_sent, contract_url, contract_pdf_url, deal_value, payment_plan')
         .eq('call_id', id)
         .order('created_at', { ascending: false })
         .maybeSingle(),
