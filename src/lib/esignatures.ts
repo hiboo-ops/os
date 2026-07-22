@@ -38,8 +38,8 @@ export async function createEsignContract(input: CreateContractInput): Promise<{
 
   const placeholderFields = Object.entries(input.placeholderFields).map(
     ([placeholder_key, replace_with_text]) => ({
-      api_key: placeholder_key,
-      value: replace_with_text,
+      placeholder_key,
+      replace_with_text,
     }),
   )
 
