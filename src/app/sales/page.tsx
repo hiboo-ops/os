@@ -11,7 +11,7 @@ import {
   UserX, CalendarX, ArrowUpRight, ArrowDownRight, Minus,
   Filter, X, User,
 } from 'lucide-react'
-import { DealsPerWeekChart, RevenuePerCloserChart, ResultVerdelingChart } from './components/sales-charts'
+import { CallsPerWeekChart, DealValuePerWeekChart, CashPerWeekChart, ClosingRatePerWeekChart } from './components/sales-charts'
 
 const iconProps = { strokeWidth: 1.75 } as const
 
@@ -310,20 +310,17 @@ export default function SalesOverview() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
         {/* Row 1 */}
         <MetricCard
-          label="Totaal calls"
+          label="Total calls"
           value={metrics.totalCalls}
           prev={hasPreviousPeriod ? prevMetrics.totalCalls : undefined}
+          subtitle={`${metrics.closedDeals} deals / ${metrics.totalCalls} calls`}
         />
         <MetricCard
-          label="Deals"
-          value={metrics.closedDeals}
-          prev={hasPreviousPeriod ? prevMetrics.closedDeals : undefined}
-        />
-        <MetricCard
-          label="Deal waarde"
+          label="Order value"
           value={eur(metrics.totalDealValue)}
           rawCurrent={metrics.totalDealValue}
           rawPrev={hasPreviousPeriod ? prevMetrics.totalDealValue : undefined}
+          subtitle={`${metrics.closedDeals} deals`}
         />
         <MetricCard
           label="Cash collected"
@@ -332,24 +329,32 @@ export default function SalesOverview() {
           rawPrev={hasPreviousPeriod ? prevMetrics.totalCashCollected : undefined}
         />
         <MetricCard
-          label="Closing rate (booked)"
+          label="Closing rate"
           value={`${metrics.closingRate.toFixed(1)}%`}
           rawCurrent={metrics.closingRate}
           rawPrev={hasPreviousPeriod ? prevMetrics.closingRate : undefined}
+          subtitle="geboekt"
         />
-
-        {/* Row 2 */}
         <MetricCard
           label="Closing rate (taken)"
           value={`${metrics.closingRateTaken.toFixed(1)}%`}
           rawCurrent={metrics.closingRateTaken}
           rawPrev={hasPreviousPeriod ? prevMetrics.closingRateTaken : undefined}
+          subtitle="genomen"
         />
+
+        {/* Row 2 */}
         <MetricCard
           label="Show-up rate"
           value={`${metrics.showUpRate.toFixed(1)}%`}
           rawCurrent={metrics.showUpRate}
           rawPrev={hasPreviousPeriod ? prevMetrics.showUpRate : undefined}
+        />
+        <MetricCard
+          label="Cancel rate"
+          value={`${metrics.cancelRate.toFixed(1)}%`}
+          rawCurrent={metrics.cancelRate}
+          rawPrev={hasPreviousPeriod ? prevMetrics.cancelRate : undefined}
         />
         <MetricCard
           label="Gem. orderwaarde"
@@ -371,24 +376,30 @@ export default function SalesOverview() {
         />
       </div>
 
-      {/* Charts: 3 columns */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* Charts: 2x2 grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white rounded-lg border border-gray-200 p-5">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Calls per week</h3>
-          <div className="h-[280px]">
-            <DealsPerWeekChart calls={filteredCalls} />
+          <h3 className="text-sm font-semibold text-gray-900 mb-3">Total calls per week</h3>
+          <div className="h-[260px]">
+            <CallsPerWeekChart calls={filteredCalls} />
           </div>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 p-5">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Omzet per closer</h3>
-          <div className="h-[280px]">
-            <RevenuePerCloserChart calls={filteredCalls} />
+          <h3 className="text-sm font-semibold text-gray-900 mb-3">Deal value per week</h3>
+          <div className="h-[260px]">
+            <DealValuePerWeekChart calls={filteredCalls} />
           </div>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 p-5">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Resultaat verdeling</h3>
-          <div className="h-[280px]">
-            <ResultVerdelingChart calls={filteredCalls} />
+          <h3 className="text-sm font-semibold text-gray-900 mb-3">Cash collected per week</h3>
+          <div className="h-[260px]">
+            <CashPerWeekChart calls={filteredCalls} />
+          </div>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 p-5">
+          <h3 className="text-sm font-semibold text-gray-900 mb-3">Closing rate per week</h3>
+          <div className="h-[260px]">
+            <ClosingRatePerWeekChart calls={filteredCalls} />
           </div>
         </div>
       </div>
@@ -396,12 +407,13 @@ export default function SalesOverview() {
   )
 }
 
-function MetricCard({ label, value, prev, rawCurrent, rawPrev }: {
+function MetricCard({ label, value, prev, rawCurrent, rawPrev, subtitle }: {
   label: string
   value: string | number
   prev?: number
   rawCurrent?: number
   rawPrev?: number
+  subtitle?: string
 }) {
   const currentNum = rawCurrent ?? (typeof value === 'number' ? value : 0)
   const previousNum = rawPrev ?? prev
@@ -410,12 +422,11 @@ function MetricCard({ label, value, prev, rawCurrent, rawPrev }: {
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-5">
       <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">{label}</div>
-      <div className="text-2xl font-semibold text-gray-900 tabular-nums">{value}</div>
-      {showComparison && (
-        <div className="mt-1">
-          <ChangeIndicator current={currentNum} previous={previousNum!} />
-        </div>
-      )}
+      <div className="flex items-baseline gap-2">
+        <div className="text-2xl font-semibold text-gray-900 tabular-nums">{value}</div>
+        {showComparison && <ChangeIndicator current={currentNum} previous={previousNum!} />}
+      </div>
+      {subtitle && <div className="text-xs text-gray-400 mt-1">{subtitle}</div>}
     </div>
   )
 }

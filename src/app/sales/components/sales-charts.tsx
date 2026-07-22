@@ -6,63 +6,68 @@ import {
   CategoryScale,
   LinearScale,
   BarElement,
-  ArcElement,
   Tooltip,
   Legend,
 } from 'chart.js'
-import { Bar, Doughnut } from 'react-chartjs-2'
+import { Bar } from 'react-chartjs-2'
 import type { Call } from '@/lib/queries/sales'
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend)
+ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend)
 
-const ACCENT = '#334155'
-
-const RESULT_COLORS: Record<string, string> = {
-  'CALL BOOKED': '#3b82f6',
-  'RESCHEDULE': '#f59e0b',
-  'FOLLOW UP': '#f97316',
-  'FOLLOW UP LONG TERM': '#ea580c',
-  'DEPOSIT': '#8b5cf6',
-  'CLOSED': '#10b981',
-  'LOST - BROKE': '#9ca3af',
-  'LOST - NO INTEREST': '#6b7280',
-  'LOST - BAD FIT': '#6b7280',
-  'NO SHOW': '#ef4444',
-  'CANCELLED BY LEAD': '#d1d5db',
-  'CANCELLED BY CLOSER': '#d1d5db',
+const COLORS = {
+  slate: '#334155',
+  emerald: '#10b981',
+  blue: '#3b82f6',
+  amber: '#f59e0b',
 }
 
-const RESULT_LABELS: Record<string, string> = {
-  'CALL BOOKED': 'Geboekt',
-  'RESCHEDULE': 'Reschedule',
-  'FOLLOW UP': 'Follow-up',
-  'FOLLOW UP LONG TERM': 'Follow-up LT',
-  'DEPOSIT': 'Deposit',
-  'CLOSED': 'Gesloten',
-  'LOST - BROKE': 'Lost – Broke',
-  'LOST - NO INTEREST': 'Lost – Geen interesse',
-  'LOST - BAD FIT': 'Lost – Bad fit',
-  'NO SHOW': 'No show',
-  'CANCELLED BY LEAD': 'Geannuleerd (lead)',
-  'CANCELLED BY CLOSER': 'Geannuleerd (closer)',
+// ── Helpers ──
+
+function groupByWeek(calls: Call[]) {
+  const map = new Map<number, Call[]>()
+  for (const c of calls) {
+    if (c.week != null) {
+      const arr = map.get(c.week) || []
+      arr.push(c)
+      map.set(c.week, arr)
+    }
+  }
+  return [...map.entries()].sort((a, b) => a[0] - b[0])
 }
 
-// ── Deals per week (bar chart) ──
+function weekLabels(grouped: [number, Call[]][]) {
+  return grouped.map(([w]) => `W${w}`)
+}
 
-export function DealsPerWeekChart({ calls }: { calls: Call[] }) {
-  const { labels, data } = useMemo(() => {
-    const weekMap = new Map<number, number>()
-    for (const c of calls) {
-      if (c.week != null) {
-        weekMap.set(c.week, (weekMap.get(c.week) || 0) + 1)
-      }
-    }
-    const sorted = [...weekMap.entries()].sort((a, b) => a[0] - b[0])
-    return {
-      labels: sorted.map(([w]) => `W${w}`),
-      data: sorted.map(([, count]) => count),
-    }
-  }, [calls])
+const eurTicks = {
+  font: { size: 11 as const },
+  color: '#94a3b8',
+  callback: (v: string | number) => '€' + Number(v).toLocaleString('nl-NL'),
+}
+
+const defaultScaleY = {
+  beginAtZero: true,
+  grid: { color: '#f1f5f9' },
+  ticks: { font: { size: 11 as const }, color: '#94a3b8' },
+}
+
+const defaultScaleX = {
+  grid: { display: false as const },
+  ticks: { font: { size: 11 as const }, color: '#94a3b8' },
+}
+
+const defaultBarStyle = {
+  borderRadius: 5,
+  barPercentage: 0.6,
+  categoryPercentage: 0.7,
+}
+
+// ── 1. Total calls per week ──
+
+export function CallsPerWeekChart({ calls }: { calls: Call[] }) {
+  const grouped = useMemo(() => groupByWeek(calls), [calls])
+  const labels = weekLabels(grouped)
+  const data = grouped.map(([, arr]) => arr.length)
 
   if (data.length === 0) return <EmptyChart text="Geen weekdata" />
 
@@ -73,10 +78,8 @@ export function DealsPerWeekChart({ calls }: { calls: Call[] }) {
         datasets: [{
           label: 'Calls',
           data,
-          backgroundColor: ACCENT,
-          borderRadius: 5,
-          barPercentage: 0.6,
-          categoryPercentage: 0.7,
+          backgroundColor: COLORS.slate,
+          ...defaultBarStyle,
         }],
       }}
       options={{
@@ -84,157 +87,138 @@ export function DealsPerWeekChart({ calls }: { calls: Call[] }) {
         maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
-          tooltip: {
-            callbacks: { label: ctx => `${ctx.parsed.y} calls` },
-          },
+          tooltip: { callbacks: { label: ctx => `${ctx.parsed.y} calls` } },
         },
         scales: {
-          y: {
-            beginAtZero: true,
-            grid: { color: '#f1f5f9' },
-            ticks: { font: { size: 11 }, color: '#94a3b8', stepSize: 1 },
-          },
-          x: {
-            grid: { display: false },
-            ticks: { font: { size: 11 }, color: '#94a3b8' },
-          },
+          y: { ...defaultScaleY, ticks: { ...defaultScaleY.ticks, stepSize: 1 } },
+          x: defaultScaleX,
         },
       }}
     />
   )
 }
 
-// ── Omzet per closer (horizontal bar chart) ──
+// ── 2. Deal value per week ──
 
-export function RevenuePerCloserChart({ calls }: { calls: Call[] }) {
-  const { labels, data } = useMemo(() => {
-    const closerMap = new Map<string, number>()
-    for (const c of calls) {
-      if (c.result === 'CLOSED' && c.closer?.name && c.deal_value) {
-        closerMap.set(c.closer.name, (closerMap.get(c.closer.name) || 0) + c.deal_value)
-      }
-    }
-    const sorted = [...closerMap.entries()].sort((a, b) => b[1] - a[1])
-    return {
-      labels: sorted.map(([name]) => name),
-      data: sorted.map(([, value]) => value),
-    }
-  }, [calls])
+export function DealValuePerWeekChart({ calls }: { calls: Call[] }) {
+  const grouped = useMemo(() => groupByWeek(calls), [calls])
+  const labels = weekLabels(grouped)
+  const data = grouped.map(([, arr]) =>
+    arr.filter(c => c.result === 'CLOSED').reduce((sum, c) => sum + (c.deal_value || 0), 0)
+  )
 
-  if (data.length === 0) return <EmptyChart text="Geen deals" />
+  if (data.length === 0) return <EmptyChart text="Geen weekdata" />
 
   return (
     <Bar
       data={{
         labels,
         datasets: [{
-          label: 'Omzet',
+          label: 'Deal value',
           data,
-          backgroundColor: ACCENT,
-          borderRadius: 5,
-          barPercentage: 0.6,
-          categoryPercentage: 0.7,
+          backgroundColor: COLORS.emerald,
+          ...defaultBarStyle,
         }],
       }}
       options={{
         responsive: true,
         maintainAspectRatio: false,
-        indexAxis: 'y' as const,
         plugins: {
           legend: { display: false },
           tooltip: {
-            callbacks: {
-              label: ctx => `€ ${Number(ctx.parsed.x).toLocaleString('nl-NL')}`,
-            },
+            callbacks: { label: ctx => `€ ${Number(ctx.parsed.y).toLocaleString('nl-NL')}` },
           },
         },
         scales: {
-          x: {
-            beginAtZero: true,
-            grid: { color: '#f1f5f9' },
-            ticks: {
-              font: { size: 11 },
-              color: '#94a3b8',
-              callback: v => '€' + Number(v).toLocaleString('nl-NL'),
-            },
-          },
-          y: {
-            grid: { display: false },
-            ticks: { font: { size: 11 }, color: '#94a3b8' },
-          },
+          y: { ...defaultScaleY, ticks: eurTicks },
+          x: defaultScaleX,
         },
       }}
     />
   )
 }
 
-// ── Resultaat verdeling (doughnut chart) ──
+// ── 3. Cash collected per week ──
 
-export function ResultVerdelingChart({ calls }: { calls: Call[] }) {
-  const { labels, data, colors } = useMemo(() => {
-    const resultMap = new Map<string, number>()
-    for (const c of calls) {
-      const result = c.result || 'CALL BOOKED'
-      resultMap.set(result, (resultMap.get(result) || 0) + 1)
-    }
-    // Filter out results with 0 count
-    const entries = [...resultMap.entries()].filter(([, count]) => count > 0)
-    return {
-      labels: entries.map(([r]) => RESULT_LABELS[r] || r),
-      data: entries.map(([, count]) => count),
-      colors: entries.map(([r]) => RESULT_COLORS[r] || '#d1d5db'),
-    }
-  }, [calls])
+export function CashPerWeekChart({ calls }: { calls: Call[] }) {
+  const grouped = useMemo(() => groupByWeek(calls), [calls])
+  const labels = weekLabels(grouped)
+  const data = grouped.map(([, arr]) =>
+    arr.reduce((sum, c) => sum + (c.cash_collected || 0), 0)
+  )
 
-  if (data.length === 0) return <EmptyChart text="Geen data" />
+  if (data.length === 0) return <EmptyChart text="Geen weekdata" />
 
   return (
-    <Doughnut
+    <Bar
       data={{
         labels,
         datasets: [{
+          label: 'Cash collected',
           data,
-          backgroundColor: colors,
-          borderWidth: 2,
-          borderColor: '#ffffff',
+          backgroundColor: COLORS.blue,
+          ...defaultBarStyle,
         }],
       }}
       options={{
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '60%',
         plugins: {
-          legend: {
-            display: true,
-            position: 'right' as const,
-            labels: {
-              font: { size: 11 },
-              color: '#64748b',
-              usePointStyle: true,
-              pointStyle: 'circle',
-              padding: 12,
-              generateLabels: (chart) => {
-                const dataset = chart.data.datasets[0]
-                return (chart.data.labels || []).map((label, i) => ({
-                  text: `${label}  (${dataset.data[i]})`,
-                  fillStyle: (dataset.backgroundColor as string[])[i],
-                  strokeStyle: '#ffffff',
-                  lineWidth: 0,
-                  hidden: false,
-                  index: i,
-                }))
-              },
-            },
-          },
+          legend: { display: false },
           tooltip: {
-            callbacks: {
-              label: ctx => {
-                const total = (ctx.dataset.data as number[]).reduce((a, b) => a + b, 0)
-                const pct = total > 0 ? Math.round((ctx.parsed / total) * 100) : 0
-                return ` ${ctx.label}: ${ctx.parsed} (${pct}%)`
-              },
+            callbacks: { label: ctx => `€ ${Number(ctx.parsed.y).toLocaleString('nl-NL')}` },
+          },
+        },
+        scales: {
+          y: { ...defaultScaleY, ticks: eurTicks },
+          x: defaultScaleX,
+        },
+      }}
+    />
+  )
+}
+
+// ── 4. Closing rate per week ──
+
+export function ClosingRatePerWeekChart({ calls }: { calls: Call[] }) {
+  const grouped = useMemo(() => groupByWeek(calls), [calls])
+  const labels = weekLabels(grouped)
+  const data = grouped.map(([, arr]) => {
+    const total = arr.length
+    const closed = arr.filter(c => c.result === 'CLOSED').length
+    return total > 0 ? Math.round((closed / total) * 1000) / 10 : 0
+  })
+
+  if (data.length === 0) return <EmptyChart text="Geen weekdata" />
+
+  return (
+    <Bar
+      data={{
+        labels,
+        datasets: [{
+          label: 'Closing rate',
+          data,
+          backgroundColor: COLORS.amber,
+          ...defaultBarStyle,
+        }],
+      }}
+      options={{
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => `${ctx.parsed.y}%` } },
+        },
+        scales: {
+          y: {
+            ...defaultScaleY,
+            ticks: {
+              font: { size: 11 as const },
+              color: '#94a3b8',
+              callback: (v: string | number) => `${v}%`,
             },
           },
+          x: defaultScaleX,
         },
       }}
     />
