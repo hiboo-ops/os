@@ -181,7 +181,7 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
         {/* ── Header ── */}
         <div className="sticky top-0 bg-white/95 backdrop-blur border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-full bg-accent-700 flex items-center justify-center text-white text-sm font-semibold shrink-0">
+            <div className="w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center text-white text-sm font-semibold shrink-0">
               {(call.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
             </div>
             <div className="min-w-0">
@@ -202,9 +202,9 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
         </div>
 
         {/* ── Contact Info ── */}
-        <div className="px-6 py-4 border-b border-gray-100">
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Contactgegevens</h3>
-          <div className="grid grid-cols-2 gap-3">
+        <div className="px-6 py-5 border-b border-gray-100">
+          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4 pb-2 border-b border-gray-50">Contactgegevens</h3>
+          <div className="grid grid-cols-2 gap-4">
             <InfoRow icon={User} label="Naam" value={call.name} />
             <InfoRow icon={Mail} label="E-mail" value={call.email} />
             <InfoRow icon={Phone} label="Telefoon" value={call.phone} />
@@ -213,9 +213,9 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
         </div>
 
         {/* ── Scheduling ── */}
-        <div className="px-6 py-4 border-b border-gray-100">
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Planning</h3>
-          <div className="grid grid-cols-2 gap-3">
+        <div className="px-6 py-5 border-b border-gray-100">
+          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4 pb-2 border-b border-gray-50">Planning</h3>
+          <div className="grid grid-cols-2 gap-4">
             <InfoRow icon={Calendar} label="Datum" value={call.date_start_time ? `${formatDate(call.date_start_time)} · ${formatTime(call.date_start_time)}` : null} />
             <InfoRow icon={UserCheck} label="Closer" value={call.closer?.name} />
             <InfoRow icon={User} label="Setter" value={call.setter?.name} />
@@ -227,8 +227,8 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
 
         {/* ── Meeting Links ── */}
         {(call.meeting_link || call.reschedule_link || call.cancel_link) && (
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Meeting Links</h3>
+          <div className="px-6 py-5 border-b border-gray-100">
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4 pb-2 border-b border-gray-50">Meeting Links</h3>
             <div className="flex flex-wrap gap-2">
               {call.meeting_link && (
                 <a href={call.meeting_link} target="_blank" rel="noopener noreferrer"
@@ -257,7 +257,7 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
 
         {/* ── Sales Info (editable) ── */}
         <div className="px-6 py-5 border-b border-gray-100">
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Sales informatie</h3>
+          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4 pb-2 border-b border-gray-50">Sales informatie</h3>
           <div className="space-y-4">
 
             {/* Result */}
@@ -266,7 +266,7 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
               <select
                 value={result}
                 onChange={e => setResult(e.target.value as CallResult)}
-                className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700"
+                className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700 transition-shadow duration-[120ms]"
               >
                 <option value="">— Selecteer —</option>
                 {RESULT_OPTIONS.map(r => (
@@ -283,7 +283,7 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
                 value={fathomLink}
                 onChange={e => setFathomLink(e.target.value)}
                 placeholder="Plak Fathom link hier..."
-                className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700"
+                className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700 transition-shadow duration-[120ms]"
               />
             </div>
 
@@ -332,7 +332,7 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
                   value={noDealReason}
                   onChange={e => setNoDealReason(e.target.value)}
                   placeholder="Reden..."
-                  className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700"
+                  className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700 transition-shadow duration-[120ms]"
                 />
               </div>
             )}
@@ -348,7 +348,7 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
                     value={dealValue}
                     onChange={e => setDealValue(e.target.value === '' ? '' : Number(e.target.value))}
                     placeholder="0"
-                    className="w-full text-sm border border-gray-200 rounded-lg pl-12 pr-3 py-2 bg-white tabular-nums focus:outline-none focus:ring-2 focus:ring-accent-700"
+                    className="w-full text-sm border border-gray-200 rounded-lg pl-12 pr-3 py-2 bg-white tabular-nums focus:outline-none focus:ring-2 focus:ring-accent-700 transition-shadow duration-[120ms]"
                   />
                 </div>
               </div>
@@ -359,7 +359,7 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
         {/* ── Closing Panel: First Payment + Contract ── */}
         {showClosingPanel && (
           <div className="px-6 py-5 border-b border-gray-100">
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4 pb-2 border-b border-gray-50">
               <CreditCard className="w-3.5 h-3.5 inline-block mr-1.5 -mt-0.5" {...iconProps} />
               First Payment Link
             </h3>
@@ -377,7 +377,7 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
                         value={payAmount}
                         onChange={e => setPayAmount(e.target.value === '' ? '' : Number(e.target.value))}
                         placeholder="0"
-                        className="w-full text-sm border border-gray-200 rounded-lg pl-12 pr-3 py-2 bg-white tabular-nums focus:outline-none focus:ring-2 focus:ring-accent-700"
+                        className="w-full text-sm border border-gray-200 rounded-lg pl-12 pr-3 py-2 bg-white tabular-nums focus:outline-none focus:ring-2 focus:ring-accent-700 transition-shadow duration-[120ms]"
                       />
                     </div>
                   </div>
@@ -388,7 +388,7 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
                     <select
                       value={payProvider}
                       onChange={e => setPayProvider(e.target.value as PayProvider)}
-                      className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700"
+                      className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700 transition-shadow duration-[120ms]"
                     >
                       <option value="MANUAL">Handmatig (screenshot)</option>
                       <option value="STRIPE">Stripe</option>
@@ -464,17 +464,17 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
         {/* ── Qualification Questions ── */}
         {call.questions && (Array.isArray(call.questions) ? call.questions.length > 0 : Object.keys(call.questions).length > 0) && (
           <div className="px-6 py-5 border-b border-gray-100">
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Qualification Questions</h3>
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4 pb-2 border-b border-gray-50">Qualification Questions</h3>
             <div className="space-y-2">
               {(Array.isArray(call.questions)
                 ? call.questions.map((qa: { question: string; answer: string }, i: number) => (
-                    <div key={i} className="bg-gray-50 rounded-md px-3 py-2.5">
+                    <div key={i} className="bg-gray-50 rounded-md px-3 py-2.5 border-l-2 border-l-gray-300">
                       <div className="text-[11px] text-gray-500 mb-0.5">{qa.question}</div>
                       <div className="text-sm text-gray-900">{qa.answer}</div>
                     </div>
                   ))
                 : Object.entries(call.questions).map(([question, answer]) => (
-                    <div key={question} className="bg-gray-50 rounded-md px-3 py-2.5">
+                    <div key={question} className="bg-gray-50 rounded-md px-3 py-2.5 border-l-2 border-l-gray-300">
                       <div className="text-[11px] text-gray-500 mb-0.5">{question}</div>
                       <div className="text-sm text-gray-900">{String(answer)}</div>
                     </div>
@@ -489,7 +489,7 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
           <button
             onClick={saveAll}
             disabled={saving}
-            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-accent-700 text-white rounded-lg text-sm font-medium hover:bg-accent-800 disabled:opacity-50 transition duration-[120ms]"
+            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-50 shadow-sm transition duration-[120ms]"
           >
             {saving ? 'Opslaan...' : saved ? <><Check className="w-4 h-4" {...iconProps} /> Opgeslagen</> : <><Save className="w-4 h-4" {...iconProps} /> Opslaan</>}
           </button>
@@ -661,7 +661,7 @@ function ContractModal({ call, accountId, firstPaymentId, firstPaymentAmount, de
                 type="text"
                 value={signerName}
                 onChange={e => setSignerName(e.target.value)}
-                className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700"
+                className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700 transition-shadow duration-[120ms]"
               />
             </div>
             <div>
@@ -670,7 +670,7 @@ function ContractModal({ call, accountId, firstPaymentId, firstPaymentAmount, de
                 type="email"
                 value={signerEmail}
                 onChange={e => setSignerEmail(e.target.value)}
-                className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700"
+                className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700 transition-shadow duration-[120ms]"
               />
             </div>
           </div>
@@ -680,7 +680,7 @@ function ContractModal({ call, accountId, firstPaymentId, firstPaymentAmount, de
               type="text"
               value={signerMobile}
               onChange={e => setSignerMobile(e.target.value)}
-              className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700"
+              className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700 transition-shadow duration-[120ms]"
             />
           </div>
 
@@ -691,7 +691,7 @@ function ContractModal({ call, accountId, firstPaymentId, firstPaymentAmount, de
               <select
                 value={selectedPackageId}
                 onChange={e => handlePackageChange(e.target.value)}
-                className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700"
+                className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700 transition-shadow duration-[120ms]"
               >
                 <option value="">— Geen pakket —</option>
                 {packages.map(p => (
@@ -712,7 +712,7 @@ function ContractModal({ call, accountId, firstPaymentId, firstPaymentAmount, de
                 type="number"
                 value={dealValue}
                 onChange={e => setDealValue(e.target.value === '' ? 0 : Number(e.target.value))}
-                className="w-full text-sm border border-gray-200 rounded-lg pl-12 pr-3 py-2 bg-white tabular-nums focus:outline-none focus:ring-2 focus:ring-accent-700"
+                className="w-full text-sm border border-gray-200 rounded-lg pl-12 pr-3 py-2 bg-white tabular-nums focus:outline-none focus:ring-2 focus:ring-accent-700 transition-shadow duration-[120ms]"
               />
             </div>
           </div>
@@ -742,7 +742,7 @@ function ContractModal({ call, accountId, firstPaymentId, firstPaymentAmount, de
               max={24}
               value={numInstallments}
               onChange={e => setNumInstallments(Math.max(1, Number(e.target.value)))}
-              className="mt-1 w-24 text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white tabular-nums focus:outline-none focus:ring-2 focus:ring-accent-700"
+              className="mt-1 w-24 text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white tabular-nums focus:outline-none focus:ring-2 focus:ring-accent-700 transition-shadow duration-[120ms]"
             />
           </div>
 
@@ -841,8 +841,10 @@ function InfoRow({ icon: Icon, label, value }: {
   value: string | null | undefined
 }) {
   return (
-    <div className="flex items-center gap-2.5">
-      <Icon className="w-3.5 h-3.5 text-gray-400 shrink-0" {...iconProps} />
+    <div className="flex items-center gap-3">
+      <div className="w-7 h-7 rounded-md bg-gray-50 flex items-center justify-center shrink-0">
+        <Icon className="w-3.5 h-3.5 text-gray-400" {...iconProps} />
+      </div>
       <div className="min-w-0">
         <div className="text-[11px] text-gray-400">{label}</div>
         <div className="text-sm text-gray-900 truncate">{value || '—'}</div>
@@ -883,7 +885,7 @@ function NoteField({ label, value, onChange, onSendSlack, slackSent }: {
         onChange={e => onChange(e.target.value)}
         rows={2}
         placeholder={`${label}...`}
-        className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-accent-700"
+        className="mt-1 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-accent-700 transition-shadow duration-[120ms]"
       />
     </div>
   )
