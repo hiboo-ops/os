@@ -117,26 +117,16 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
 
   const loadData = useCallback(async () => {
     try {
-      const [incomingRes, activitiesRes] = await Promise.all([
+      const [detail, incomingRes] = await Promise.all([
+        fetch(`/api/accounts/${id}`).then(r => r.json()),
         fetch(`/api/incoming-payments?account_id=${id}`).then(r => r.json()),
-        fetch(`/api/incoming-payments?account_id=${id}`).then(() => []), // activities fetched server-side below
       ])
 
-      const { getAccountById, getContractsForAccount, getPaymentsForAccount } = await import('@/lib/queries/accounts')
-      const { getActivitiesForAccount } = await import('@/lib/queries/collections')
-
-      const [acc, ctrs, pmts, acts] = await Promise.all([
-        getAccountById(id),
-        getContractsForAccount(id),
-        getPaymentsForAccount(id),
-        getActivitiesForAccount(id),
-      ])
-
-      setAccount(acc)
-      setContracts(ctrs)
+      setAccount((detail?.account ?? null) as Account | null)
+      setContracts((detail?.contracts ?? []) as Contract[])
+      setPayments((detail?.payments ?? []) as Payment[])
+      setActivities((detail?.activities ?? []) as Activity[])
       setIncoming(Array.isArray(incomingRes) ? incomingRes : [])
-      setPayments(pmts as Payment[])
-      setActivities(acts as Activity[])
     } catch {
       // silently fail
     } finally {
