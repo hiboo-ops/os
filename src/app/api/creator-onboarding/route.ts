@@ -61,12 +61,13 @@ export async function PATCH(req: NextRequest) {
   const denied = requireRole(user, ['ADMIN', 'PARTNER_MANAGER'])
   if (denied) return denied
 
-  const { id, status, creator_id } = await req.json() as { id?: string; status?: string; creator_id?: string }
+  const { id, status, creator_id, notes } = await req.json() as { id?: string; status?: string; creator_id?: string; notes?: string }
   if (!id) return NextResponse.json({ error: 'id is verplicht' }, { status: 400 })
 
   const updates: Record<string, unknown> = {}
   if (status) updates.status = status
   if (creator_id !== undefined) updates.creator_id = creator_id || null
+  if (notes !== undefined) updates.notes = notes
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'Niets om bij te werken' }, { status: 400 })
   }

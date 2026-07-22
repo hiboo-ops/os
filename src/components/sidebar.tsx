@@ -61,11 +61,16 @@ const nav: NavItem[] = [
     href: '/creators', label: 'Creators', icon: Megaphone, roles: ['ADMIN', 'PARTNER_MANAGER'],
     children: [
       { href: '/creators', label: 'Overzicht', icon: LayoutDashboard },
-      { href: '/creators/onboarding', label: 'Onboarding', icon: ClipboardList },
       { href: '/eod/creator', label: 'EOD', icon: ClipboardList },
     ],
   },
-  { href: '/eod/partner-manager', label: 'Partner Manager', icon: Handshake, roles: ['ADMIN', 'PARTNER_MANAGER'] },
+  {
+    href: '/partner-manager/crm', label: 'Partner Manager', icon: Handshake, roles: ['ADMIN', 'PARTNER_MANAGER'],
+    children: [
+      { href: '/partner-manager/crm', label: 'CRM', icon: Columns3 },
+      { href: '/eod/partner-manager', label: 'EOD', icon: ClipboardList },
+    ],
+  },
   {
     href: '/delivery', label: 'Delivery', icon: GraduationCap, roles: ['ADMIN', 'COACH'],
     children: [
@@ -90,6 +95,7 @@ export function Sidebar() {
     '/leads': pathname.startsWith('/leads'),
     '/finance': pathname.startsWith('/finance') || pathname === '/eod/finance',
     '/creators': pathname.startsWith('/creators') || pathname === '/eod/creator',
+    '/partner-manager/crm': pathname.startsWith('/partner-manager') || pathname === '/eod/partner-manager',
   })
   const [userRole, setUserRole] = useState<UserRole | null>(null)
 
