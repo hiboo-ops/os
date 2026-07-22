@@ -7,7 +7,7 @@ import { SlideOver } from '@/components/ui/slide-over'
 import { Plus, Pencil } from 'lucide-react'
 
 const iconProps = { strokeWidth: 1.75 } as const
-const ROLES = ['ADMIN', 'CLOSER', 'SETTER', 'COACH', 'FINANCE', 'PARTNER_MANAGER'] as const
+const ROLES = ['ADMIN', 'CLOSER', 'SETTER', 'COACH', 'FINANCE', 'PARTNER_MANAGER', 'CREATOR'] as const
 
 interface TeamMember {
   id: string
@@ -20,6 +20,7 @@ interface TeamMember {
   closer_id: string | null
   setter_id: string | null
   coach_id: string | null
+  creator_id: string | null
 }
 
 export function TeamTab() {
@@ -166,7 +167,7 @@ function AddMemberSlideOver({ onClose, onSaved }: { onClose: () => void; onSaved
             {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
           <p className="text-[10px] text-gray-400 mt-1">
-            ADMIN: volledige toegang · CLOSER: sales (eigen) · SETTER: booked calls + EOD (eigen) · FINANCE: finance · PARTNER_MANAGER: creators + partner · COACH: delivery
+            ADMIN: volledig · CLOSER: sales (eigen) · SETTER: booked calls + EOD · FINANCE: finance · PARTNER_MANAGER: creators + partner · COACH: delivery · CREATOR: eigen dashboard + EOD (koppel via bewerken → Creator koppeling)
           </p>
         </Field>
         {error && <div className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</div>}
@@ -189,8 +190,14 @@ function EditMemberSlideOver({ member, members, onClose, onSaved }: {
     closer_id: member.closer_id || '',
     setter_id: member.setter_id || '',
     coach_id: member.coach_id || '',
+    creator_id: member.creator_id || '',
   })
   const [saving, setSaving] = useState(false)
+  const [creatorsList, setCreatorsList] = useState<{ id: string; name: string }[]>([])
+
+  useEffect(() => {
+    fetch('/api/creators').then(r => r.json()).then(d => setCreatorsList(Array.isArray(d) ? d : [])).catch(() => {})
+  }, [])
 
   const closers = members.filter(m => m.role === 'CLOSER' || m.role === 'ADMIN')
   const settersList = members.filter(m => m.role === 'SETTER' || m.role === 'ADMIN')
@@ -207,6 +214,7 @@ function EditMemberSlideOver({ member, members, onClose, onSaved }: {
         closer_id: form.closer_id || null,
         setter_id: form.setter_id || null,
         coach_id: form.coach_id || null,
+        creator_id: form.creator_id || null,
       }),
     })
     setSaving(false)
@@ -254,6 +262,13 @@ function EditMemberSlideOver({ member, members, onClose, onSaved }: {
             className="mt-1.5 w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700">
             <option value="">Geen</option>
             {coaches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </Field>
+        <Field label="Creator koppeling (voor CREATOR-login)">
+          <select value={form.creator_id} onChange={e => setForm({ ...form, creator_id: e.target.value })}
+            className="mt-1.5 w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-accent-700">
+            <option value="">Geen</option>
+            {creatorsList.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </Field>
         <label className="flex items-center gap-2 cursor-pointer">

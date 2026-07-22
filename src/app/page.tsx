@@ -12,8 +12,9 @@ const ROLE_HOME: Partial<Record<UserRole, string>> = {
   CLOSER: '/sales',
   SETTER: '/sales/pipeline',
   FINANCE: '/finance',
-  PARTNER_MANAGER: '/creators',
+  PARTNER_MANAGER: '/partner-manager/crm',
   COACH: '/delivery',
+  CREATOR: '/creator-dashboard',
 }
 
 async function getStats() {

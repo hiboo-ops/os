@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
-export type UserRole = 'ADMIN' | 'CLOSER' | 'SETTER' | 'COACH' | 'FINANCE' | 'PARTNER_MANAGER'
+export type UserRole = 'ADMIN' | 'CLOSER' | 'SETTER' | 'COACH' | 'FINANCE' | 'PARTNER_MANAGER' | 'CREATOR'
 
 export interface AuthUser {
   id: string
@@ -13,6 +13,7 @@ export interface AuthUser {
   closerId: string | null
   setterId: string | null
   coachId: string | null
+  creatorId: string | null
 }
 
 export async function getAuthUser(): Promise<AuthUser | null> {
@@ -36,22 +37,24 @@ export async function getAuthUser(): Promise<AuthUser | null> {
 
   const { data: member } = await supabase
     .from('team_members')
-    .select('id, name, role, closer_id, setter_id, coach_id')
+    .select('id, name, role, closer_id, setter_id, coach_id, creator_id')
     .eq('user_id', user.id)
     .eq('active', true)
     .single()
 
   if (!member) return null
 
+  const m = member as unknown as Record<string, unknown>
   return {
     id: user.id,
     email: user.email || '',
     name: member.name,
-    role: (member as unknown as Record<string, unknown>).role as UserRole,
+    role: m.role as UserRole,
     teamMemberId: member.id,
-    closerId: (member as unknown as Record<string, unknown>).closer_id as string | null,
-    setterId: (member as unknown as Record<string, unknown>).setter_id as string | null,
-    coachId: (member as unknown as Record<string, unknown>).coach_id as string | null,
+    closerId: m.closer_id as string | null,
+    setterId: m.setter_id as string | null,
+    coachId: m.coach_id as string | null,
+    creatorId: m.creator_id as string | null,
   }
 }
 

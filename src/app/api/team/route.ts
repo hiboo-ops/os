@@ -75,7 +75,7 @@ export async function PATCH(req: NextRequest) {
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
   // Only allow specific fields
-  const allowed = ['name', 'role', 'active', 'closer_id', 'setter_id', 'coach_id']
+  const allowed = ['name', 'role', 'active', 'closer_id', 'setter_id', 'coach_id', 'creator_id']
   const filtered: Record<string, unknown> = {}
   for (const key of allowed) {
     if (key in updates) filtered[key] = updates[key]

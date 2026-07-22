@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
-type UserRole = 'ADMIN' | 'CLOSER' | 'SETTER' | 'COACH' | 'FINANCE' | 'PARTNER_MANAGER'
+type UserRole = 'ADMIN' | 'CLOSER' | 'SETTER' | 'COACH' | 'FINANCE' | 'PARTNER_MANAGER' | 'CREATOR'
 
 interface NavItem {
   href: string
@@ -58,19 +58,16 @@ const nav: NavItem[] = [
     ],
   },
   {
-    href: '/creators', label: 'Creators', icon: Megaphone, roles: ['ADMIN', 'PARTNER_MANAGER'],
-    children: [
-      { href: '/creators', label: 'Overzicht', icon: LayoutDashboard },
-      { href: '/eod/creator', label: 'EOD', icon: ClipboardList },
-    ],
-  },
-  {
     href: '/partner-manager/crm', label: 'Partner Manager', icon: Handshake, roles: ['ADMIN', 'PARTNER_MANAGER'],
     children: [
+      { href: '/creators', label: 'Overzicht', icon: Megaphone },
       { href: '/partner-manager/crm', label: 'CRM', icon: Columns3 },
       { href: '/eod/partner-manager', label: 'EOD', icon: ClipboardList },
     ],
   },
+  // Creator zelf-login: eigen dashboard + EOD
+  { href: '/creator-dashboard', label: 'Mijn dashboard', icon: LayoutDashboard, roles: ['CREATOR'] },
+  { href: '/eod/creator', label: 'EOD', icon: ClipboardList, roles: ['CREATOR'] },
   {
     href: '/delivery', label: 'Delivery', icon: GraduationCap, roles: ['ADMIN', 'COACH'],
     children: [
@@ -94,8 +91,7 @@ export function Sidebar() {
     '/sales/pipeline': pathname.startsWith('/sales/pipeline') || pathname.startsWith('/eod/setter'),
     '/leads': pathname.startsWith('/leads'),
     '/finance': pathname.startsWith('/finance') || pathname === '/eod/finance',
-    '/creators': pathname.startsWith('/creators') || pathname === '/eod/creator',
-    '/partner-manager/crm': pathname.startsWith('/partner-manager') || pathname === '/eod/partner-manager',
+    '/partner-manager/crm': pathname.startsWith('/partner-manager') || pathname.startsWith('/creators') || pathname === '/eod/partner-manager',
   })
   const [userRole, setUserRole] = useState<UserRole | null>(null)
 
