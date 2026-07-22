@@ -96,6 +96,9 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
   const [postcode, setPostcode] = useState('')
   const [city, setCity] = useState('')
   const [numInstallments, setNumInstallments] = useState(3)
+  // First deposit (rij #1) — bij een contract direct vanaf een CLOSED-deal
+  const [firstDepositAmount, setFirstDepositAmount] = useState<number>(Number(call.first_deposit) || 0)
+  const [firstDepositDate, setFirstDepositDate] = useState(new Date().toISOString().split('T')[0])
   const [contractCreating, setContractCreating] = useState(false)
   const [contractError, setContractError] = useState('')
   const [packages, setPackages] = useState<PackageOption[]>([])
@@ -132,8 +135,8 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
   }, [])
 
   useEffect(() => {
-    if (showContractForm) loadPackages()
-  }, [showContractForm, loadPackages])
+    if (result === 'CLOSED' || showContractForm) loadPackages()
+  }, [result, showContractForm, loadPackages])
 
   // Sync contractDealValue when dealValue changes
   useEffect(() => {
@@ -149,14 +152,14 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
   const hasFirstPayment = payLink !== null || (context?.payments.length ?? 0) > 0
   const contractAccountId = payLink?.account_id ?? context?.account?.id ?? null
   const contractFirstPaymentId = payLink?.incoming_payment_id ?? contextFirstPayment?.id ?? null
-  // Contract-module verschijnt bij CLOSED zodra er een eerste betaling is en er nog geen contract is.
-  const canCreateContract =
-    result === 'CLOSED' && hasFirstPayment && !context?.contract && !!contractAccountId && !!contractFirstPaymentId
+  // Contract-module verschijnt direct op een CLOSED-deal zonder bestaand contract.
+  // De eerste betaling maakt hij desnoods zelf aan bij opslaan.
+  const canCreateContract = result === 'CLOSED' && !context?.contract
 
-  // Bedrag van de eerste betaling: sessie-invoer, anders uit context.
-  const firstPaymentAmount = payLink !== null
-    ? (Number(payAmount) || 0)
-    : (contextFirstPayment ? Number(contextFirstPayment.amount) : (Number(payAmount) || 0))
+  // Bedrag van de eerste betaling: bestaande betaling, anders de deposit-field.
+  const firstPaymentAmount = contextFirstPayment
+    ? Number(contextFirstPayment.amount)
+    : firstDepositAmount
   const remaining = contractDealValue - firstPaymentAmount
   const perInstallment = numInstallments > 0 ? Math.round((remaining / numInstallments) * 100) / 100 : 0
 
@@ -312,8 +315,9 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
       setContractError('Naam en e-mail zijn verplicht')
       return
     }
-    if (!contractAccountId || !contractFirstPaymentId) {
-      setContractError('Geen eerste betaling gevonden — maak eerst een betaallink aan')
+    // Nieuwe deal zonder bestaande betaling → first deposit verplicht.
+    if (!contractFirstPaymentId && (!firstDepositAmount || firstDepositAmount <= 0)) {
+      setContractError('Vul een eerste-termijn-bedrag in')
       return
     }
     setContractCreating(true)
@@ -324,9 +328,7 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           call_id: call.id,
-          account_id: contractAccountId,
           deal_value: contractDealValue,
-          first_payment_id: contractFirstPaymentId,
           number_of_installments: numInstallments,
           schedule,
           signer_name: signerName,
@@ -336,6 +338,10 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
           address: address || undefined,
           postcode: postcode || undefined,
           city: city || undefined,
+          // Bestaande eerste betaling hergebruiken, anders uit de deposit-velden aanmaken
+          ...(contractFirstPaymentId
+            ? { account_id: contractAccountId, first_payment_id: contractFirstPaymentId }
+            : { first_deposit_amount: firstDepositAmount, first_deposit_date: firstDepositDate }),
         }),
       })
       if (!res.ok) {
@@ -644,8 +650,8 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
               <div className="px-5 py-4 border-t border-gray-100 space-y-4">
                 <SectionLabel icon={CreditCard}>Closen & Innen</SectionLabel>
 
-                {/* First Payment — aanmaakformulier (alleen als er nog geen eerste betaling is) */}
-                {!hasFirstPayment && (
+                {/* Deposit — losse betaallink (alleen bij DEPOSIT, geen contract) */}
+                {result === 'DEPOSIT' && !hasFirstPayment && (
                   <div className="space-y-3 mt-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
@@ -735,18 +741,10 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
                     </div>
                     )}
 
-                    {/* Contract section */}
+                    {/* Contract section — direct zichtbaar op een CLOSED-deal */}
                     {canCreateContract && (
                       <>
-                        {!showContractForm ? (
-                          <Button
-                            onClick={() => setShowContractForm(true)}
-                            variant="secondary"
-                            className="w-full"
-                          >
-                            <FileText className="w-4 h-4" {...iconProps} /> Contract aanmaken
-                          </Button>
-                        ) : (
+                        {(
                           <div className="border border-gray-200 rounded-lg p-4 space-y-4">
                             <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
                               <FileText className="w-4 h-4" {...iconProps} /> Contract aanmaken
@@ -810,6 +808,34 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
                                 />
                               </div>
                             </div>
+
+                            {/* Eerste termijn (deposit) — alleen als er nog geen betaling is */}
+                            {!contextFirstPayment && (
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className={labelClass}>Eerste termijn</label>
+                                  <div className="mt-1 relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">EUR</span>
+                                    <input
+                                      type="number"
+                                      value={firstDepositAmount || ''}
+                                      onChange={e => setFirstDepositAmount(e.target.value === '' ? 0 : Number(e.target.value))}
+                                      placeholder="0"
+                                      className={`pl-12 tabular-nums ${inputClass}`}
+                                    />
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className={labelClass}>Datum eerste termijn</label>
+                                  <input
+                                    type="date"
+                                    value={firstDepositDate}
+                                    onChange={e => setFirstDepositDate(e.target.value)}
+                                    className={`mt-1 ${inputClass}`}
+                                  />
+                                </div>
+                              </div>
+                            )}
 
                             {/* Summary */}
                             <div className="bg-gray-50 rounded-lg px-4 py-3 text-sm space-y-1">
@@ -905,17 +931,9 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
                               </div>
                             )}
 
-                            <div className="flex gap-3">
-                              <Button onClick={handleCreateContract} disabled={contractCreating} className="flex-1">
-                                {contractCreating ? 'Aanmaken...' : 'Contract aanmaken + versturen'}
-                              </Button>
-                              <button
-                                onClick={() => setShowContractForm(false)}
-                                className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition duration-[120ms]"
-                              >
-                                Annuleren
-                              </button>
-                            </div>
+                            <Button onClick={handleCreateContract} disabled={contractCreating} className="w-full">
+                              {contractCreating ? 'Aanmaken...' : 'Contract aanmaken + versturen'}
+                            </Button>
                           </div>
                         )}
                       </>

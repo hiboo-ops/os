@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser, requireRole } from '@/lib/auth'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import { createEsignContract } from '@/lib/esignatures'
+import { findAccountByEmail, createAccount, createIncomingPayment } from '@/lib/queries/accounts'
 
 interface ScheduleItem {
   amount: number
@@ -10,8 +11,11 @@ interface ScheduleItem {
 
 /**
  * POST /api/finance-contracts
- * Maakt een contract aan met betalingsschema + koppelt first payment +
- * maakt incoming_payments #2..n + roept esignatures.io aan.
+ * Maakt een contract aan met betalingsschema.
+ * Zelfvoorzienend: als er nog geen first_payment_id/account_id is (contract direct
+ * vanaf een CLOSED-deal), matcht/maakt hij het account op de call-email en maakt
+ * incoming_payment #1 (first deposit). Daarna: contract + incoming_payments #2..n
+ * + esignatures.io.
  */
 export async function POST(req: NextRequest) {
   const user = await getAuthUser()
@@ -21,9 +25,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const {
     call_id,
-    account_id,
     deal_value,
-    first_payment_id,
     number_of_installments,
     schedule,
     signer_name,
@@ -33,11 +35,11 @@ export async function POST(req: NextRequest) {
     address,
     postcode,
     city,
+    first_deposit_amount,
+    first_deposit_date,
   } = body as {
     call_id: string
-    account_id: string
     deal_value: number
-    first_payment_id: string
     number_of_installments: number
     schedule: ScheduleItem[]
     signer_name: string
@@ -47,11 +49,16 @@ export async function POST(req: NextRequest) {
     address?: string
     postcode?: string
     city?: string
+    first_deposit_amount?: number
+    first_deposit_date?: string
   }
 
-  if (!call_id || !account_id || !deal_value || !first_payment_id) {
+  let account_id: string | undefined = body.account_id
+  let first_payment_id: string | undefined = body.first_payment_id
+
+  if (!call_id || !deal_value) {
     return NextResponse.json(
-      { error: 'call_id, account_id, deal_value en first_payment_id zijn verplicht' },
+      { error: 'call_id en deal_value zijn verplicht' },
       { status: 400 },
     )
   }
@@ -65,6 +72,61 @@ export async function POST(req: NextRequest) {
 
   const admin = getSupabaseAdmin()
 
+  // ── Bootstrap: account + first payment aanmaken als die er nog niet zijn ──
+  if (!first_payment_id) {
+    const { data: call } = await admin
+      .from('calls')
+      .select('*')
+      .eq('id', call_id)
+      .single()
+
+    if (!call) {
+      return NextResponse.json({ error: 'Call niet gevonden' }, { status: 404 })
+    }
+
+    // Account: gebruik meegegeven id, anders match/maak op email
+    let account = account_id
+      ? (await admin.from('accounts').select('*').eq('id', account_id).single()).data
+      : (call.email ? await findAccountByEmail(call.email) : null)
+
+    if (!account) {
+      const { data: lead } = await admin
+        .from('leads')
+        .select('id, creator_id, source')
+        .eq('call_id', call_id)
+        .maybeSingle()
+
+      account = await createAccount({
+        name: call.name || signer_name || 'Onbekend',
+        email: call.email || signer_email || null,
+        phone: call.phone || null,
+        source: lead?.source || call.source || null,
+        creator_id: lead?.creator_id || null,
+        setter_id: call.setter_id || null,
+        closer_id: call.closer_id || null,
+        lead_id: lead?.id || null,
+        call_id,
+      })
+    }
+    account_id = account.id as string
+
+    // First deposit → incoming_payment #1
+    const depositAmount = Number(first_deposit_amount) || 0
+    if (depositAmount <= 0) {
+      return NextResponse.json(
+        { error: 'first_deposit_amount (> 0) is verplicht voor een nieuw contract' },
+        { status: 400 },
+      )
+    }
+    const ip1 = await createIncomingPayment({
+      account_id: account_id as string,
+      installment_number: 1,
+      amount: depositAmount,
+      due_date: first_deposit_date || new Date().toISOString().split('T')[0],
+    })
+    first_payment_id = ip1.id
+  }
+
   // Haal first payment op voor bedrag
   const { data: firstPayment } = await admin
     .from('incoming_payments')
@@ -75,6 +137,11 @@ export async function POST(req: NextRequest) {
   if (!firstPayment) {
     return NextResponse.json({ error: 'First payment niet gevonden' }, { status: 404 })
   }
+  if (!account_id) account_id = firstPayment.account_id
+  if (!account_id) {
+    return NextResponse.json({ error: 'Account kon niet worden bepaald' }, { status: 500 })
+  }
+  const accountId: string = account_id
 
   // Idempotency: als deze first payment al aan een contract hangt, niet opnieuw aanmaken
   if (firstPayment.contract_id) {
@@ -105,7 +172,7 @@ export async function POST(req: NextRequest) {
   const { data: account } = await admin
     .from('accounts')
     .select('*')
-    .eq('id', account_id)
+    .eq('id', accountId)
     .single()
 
   // 1. Contract aanmaken
@@ -113,7 +180,7 @@ export async function POST(req: NextRequest) {
   const { data: contract, error: contractErr } = await admin
     .from('contracts')
     .insert({
-      account_id,
+      account_id: accountId,
       call_id,
       name: signer_name || 'Contract',
       deal_value,
@@ -147,7 +214,7 @@ export async function POST(req: NextRequest) {
 
   // 3. Maak incoming_payments #2..n per schema
   const installments = schedule.map((item, idx) => ({
-    account_id,
+    account_id: accountId,
     contract_id: contract.id,
     installment_number: idx + 2,
     amount: item.amount,
@@ -255,6 +322,8 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     contract_id: contract.id,
+    account_id: accountId,
+    first_payment_id,
     installments_created: installments.length,
     esign_status: esignResult?.esign_status || 'PENDING_CONFIG',
     esign_contract_id: esignResult?.esign_contract_id || null,
