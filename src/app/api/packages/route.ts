@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin'
 
 export async function GET() {
   const user = await getAuthUser()
-  const denied = requireRole(user, ['ADMIN'])
+  const denied = requireRole(user, ['ADMIN', 'CLOSER'])
   if (denied) return denied
 
   const admin = getSupabaseAdmin()
