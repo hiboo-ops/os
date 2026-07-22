@@ -4,8 +4,12 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Skip auth for login and Calendly webhook (external, uses own verification)
-  if (pathname === '/login' || pathname === '/api/webhooks/calendly') {
+  // Skip auth for login, Calendly webhook, en de publieke partner-onboarding
+  if (
+    pathname === '/login' ||
+    pathname === '/api/webhooks/calendly' ||
+    pathname.startsWith('/partner-onboarding')
+  ) {
     return NextResponse.next()
   }
 

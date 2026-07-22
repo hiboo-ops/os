@@ -5,9 +5,10 @@ import { Sidebar } from '@/components/sidebar'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const isLogin = pathname === '/login'
+  // Publieke pagina's zonder app-shell (sidebar)
+  const noShell = pathname === '/login' || pathname.startsWith('/partner-onboarding')
 
-  if (isLogin) return <>{children}</>
+  if (noShell) return <>{children}</>
 
   return (
     <>

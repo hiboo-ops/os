@@ -61,6 +61,7 @@ const nav: NavItem[] = [
     href: '/creators', label: 'Creators', icon: Megaphone, roles: ['ADMIN', 'PARTNER_MANAGER'],
     children: [
       { href: '/creators', label: 'Overzicht', icon: LayoutDashboard },
+      { href: '/creators/onboarding', label: 'Onboarding', icon: ClipboardList },
       { href: '/eod/creator', label: 'EOD', icon: ClipboardList },
     ],
   },
