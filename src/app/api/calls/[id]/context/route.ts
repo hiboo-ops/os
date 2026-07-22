@@ -14,7 +14,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     const [leadResult, accountResult, contractResult] = await Promise.all([
       admin
         .from('leads')
-        .select('id, quiz_answers, triage_notes')
+        .select('id, quiz_answers, triage_notes, creator_name')
         .eq('call_id', id)
         .maybeSingle(),
       admin

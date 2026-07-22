@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatDate } from '@/lib/format'
-import { supabase } from '@/lib/supabase'
 import type { Call, CallResult } from '@/lib/queries/sales'
 import {
   X, Save, Check, Copy, Link2, Send, FileText, ExternalLink,
@@ -46,7 +45,7 @@ interface PaymentRow {
 }
 
 interface ContextData {
-  lead: { id: string; quiz_answers: { question: string; answer: string }[] | null; triage_notes: string | null } | null
+  lead: { id: string; quiz_answers: { question: string; answer: string }[] | null; triage_notes: string | null; creator_name: string | null } | null
   account: { id: string; status: string; ltv: number } | null
   payments: PaymentRow[]
   contract: {
@@ -139,9 +138,9 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
   }, [loadContext])
 
   useEffect(() => {
-    supabase.from('closers').select('id, name').order('name').then(({ data }) => {
-      setClosers((data as CloserOption[]) || [])
-    })
+    fetch('/api/closers').then(r => r.json()).then(data => {
+      setClosers(Array.isArray(data) ? data : [])
+    }).catch(() => setClosers([]))
   }, [])
 
   const loadPackages = useCallback(async () => {
@@ -403,6 +402,7 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
               </select>
             </Row>
             <Row label="Setter"><span className="text-sm text-gray-900">{call.setter?.name || '—'}</span></Row>
+            <Row label="Creator"><span className="text-sm text-gray-900">{context?.lead?.creator_name || '—'}</span></Row>
             <Row label="Source" last><span className="text-sm text-gray-900">{call.source || '—'}</span></Row>
           </Section>
 
@@ -564,15 +564,16 @@ export function CallDetail({ call, onClose, onUpdate }: CallDetailProps) {
             </div>
           )}
 
-          {/* Qualification Questions */}
+          {/* Qualification Questions — één bron (Calendly-vragen, anders quiz) */}
           {(hasQuestions || hasQuiz) && (
             <div>
               <SectionTitle>Qualification Questions</SectionTitle>
               <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-2">
-                {hasQuiz && quiz!.map((qa, i) => <QA key={`q${i}`} q={qa.question} a={qa.answer} />)}
-                {hasQuestions && (Array.isArray(call.questions)
-                  ? (call.questions as { question: string; answer: string }[]).map((qa, i) => <QA key={`c${i}`} q={qa.question} a={qa.answer} />)
-                  : Object.entries(call.questions!).map(([q, a]) => <QA key={q} q={q} a={String(a)} />))}
+                {hasQuestions
+                  ? (Array.isArray(call.questions)
+                      ? (call.questions as { question: string; answer: string }[]).map((qa, i) => <QA key={`c${i}`} q={qa.question} a={qa.answer} />)
+                      : Object.entries(call.questions!).map(([q, a]) => <QA key={q} q={q} a={String(a)} />))
+                  : quiz!.map((qa, i) => <QA key={`q${i}`} q={qa.question} a={qa.answer} />)}
               </div>
             </div>
           )}
