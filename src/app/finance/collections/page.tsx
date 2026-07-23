@@ -2,20 +2,26 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { KpiCard } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { SkeletonPage } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
-import {
-  AgingBarChart,
-  CashForecastChart,
-  ExpectedVsCollectedChart,
-} from '@/components/ui/charts'
+import { KpiStrip, KpiCell } from '@/components/ui/kpi-strip'
+import { ScreenHeader, SegmentedControl, Panel } from '@/components/ui/industry-ui'
+import { SteelBars, GroupedSteelBars } from '@/components/ui/industry-charts'
 import { eur, formatDateShort } from '@/lib/format'
 import {
   Inbox, Send, Phone, MessageSquare, AlertTriangle,
-  ExternalLink, CheckCircle, Calendar, List, Columns3, Clock,
+  ExternalLink, CheckCircle, Clock,
 } from 'lucide-react'
+
+function LegendSwatch({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="w-2.5 h-2.5" style={{ background: color }} />
+      <span className="font-heading font-semibold uppercase text-[9.5px] tracking-[0.08em] text-ink/55">{label}</span>
+    </span>
+  )
+}
 
 // ── Types ──
 
@@ -61,12 +67,13 @@ interface CollectionData {
 type ViewMode = 'werklijst' | 'kanban' | 'kalender'
 
 // ── Collection Status columns for Kanban ──
+// Mono steel steps — red only for the dispute signal.
 const KANBAN_COLUMNS = [
-  { key: 'OPEN', label: 'Te innen', color: 'bg-blue-500' },
-  { key: 'REMINDER_SENT', label: 'Reminder', color: 'bg-sky-500' },
-  { key: 'CONTACTED', label: 'Gecontacteerd', color: 'bg-indigo-500' },
-  { key: 'PROMISE_TO_PAY', label: 'Toegezegd', color: 'bg-violet-500' },
-  { key: 'DISPUTE', label: 'Geschil', color: 'bg-red-500' },
+  { key: 'OPEN', label: 'Te innen', color: 'bg-accent-800' },
+  { key: 'REMINDER_SENT', label: 'Reminder', color: 'bg-accent-600' },
+  { key: 'CONTACTED', label: 'Gecontacteerd', color: 'bg-accent-500' },
+  { key: 'PROMISE_TO_PAY', label: 'Toegezegd', color: 'bg-accent-400' },
+  { key: 'DISPUTE', label: 'Geschil', color: 'bg-[var(--color-danger)]' },
 ]
 
 // ── Activity type icons ──
@@ -133,116 +140,67 @@ export default function CollectionsPage() {
   return (
     <div>
       {/* Header + Toggle */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Collections</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Openstaande termijnen innen</p>
-        </div>
-        <div className="flex bg-gray-100 rounded-lg p-0.5">
-          <button
-            onClick={() => setType('legacy')}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors duration-[120ms] ${
-              type === 'legacy' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            Legacy
-          </button>
-          <button
-            onClick={() => setType('nieuw')}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors duration-[120ms] ${
-              type === 'nieuw' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            Nieuw
-          </button>
-        </div>
-      </div>
+      <ScreenHeader
+        eyebrow="REVENUE / FINANCE"
+        title="Collections"
+        right={
+          <SegmentedControl<'legacy' | 'nieuw'>
+            options={[{ value: 'legacy', label: 'Legacy' }, { value: 'nieuw', label: 'New' }]}
+            value={type} onChange={setType}
+          />
+        }
+      />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
-        <KpiCard
-          label="Collection rate"
-          value={`${kpis?.collectionRate ?? 0}%`}
-          caption="doel 98%"
-          captionColor={(kpis?.collectionRate ?? 0) >= 98 ? 'success' : 'warning'}
-        />
-        <KpiCard
-          label="Totaal openstaand"
-          value={eur(kpis?.totalOpen ?? 0)}
-        />
-        <KpiCard
-          label="Achterstallig"
-          value={eur(kpis?.overdueAmount ?? 0)}
-          caption={`${kpis?.overdueCount ?? 0} termijnen`}
-          captionColor={(kpis?.overdueCount ?? 0) > 0 ? 'danger' : 'default'}
-        />
-        <KpiCard
-          label="Verwacht deze week"
-          value={eur(kpis?.expectedThisWeek ?? 0)}
-        />
-        <KpiCard
-          label="Geïnd deze maand"
-          value={eur(kpis?.collectedThisMonth ?? 0)}
-          captionColor="success"
-        />
-        <KpiCard
-          label="In geschil"
-          value={eur(kpis?.inDispute ?? 0)}
-          captionColor={(kpis?.inDispute ?? 0) > 0 ? 'danger' : 'default'}
-        />
+      {/* KPI strip */}
+      <div className="mb-6">
+        <KpiStrip cols={6}>
+          <KpiCell size="sm" label="Collection Rate" value={`${kpis?.collectionRate ?? 0}%`} caption="target 98%" />
+          <KpiCell size="sm" label="Total Open" value={eur(kpis?.totalOpen ?? 0)} />
+          <KpiCell size="sm" label="Overdue" value={eur(kpis?.overdueAmount ?? 0)} caption={`${kpis?.overdueCount ?? 0} installments`} danger={(kpis?.overdueCount ?? 0) > 0} />
+          <KpiCell size="sm" label="Expected This Week" value={eur(kpis?.expectedThisWeek ?? 0)} />
+          <KpiCell size="sm" label="Collected This Month" value={eur(kpis?.collectedThisMonth ?? 0)} />
+          <KpiCell size="sm" label="In Dispute" value={eur(kpis?.inDispute ?? 0)} danger={(kpis?.inDispute ?? 0) > 0} />
+        </KpiStrip>
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-lg border border-gray-200 p-5">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Ouderdom openstaand</h3>
-          <div className="h-48">
-            <AgingBarChart
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-[22px] mb-6">
+        <Panel title="Ageing Outstanding">
+          <div className="h-[170px]">
+            <SteelBars
               labels={(data?.aging || []).map((b) => b.label)}
               data={(data?.aging || []).map((b) => b.amount)}
+              danger={(data?.aging || []).map((b) => /90/.test(b.label))}
             />
           </div>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-5">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Cash forecast (12 weken)</h3>
-          <div className="h-48">
-            <CashForecastChart
-              labels={(data?.forecast || []).map((w) => w.weekLabel)}
-              data={(data?.forecast || []).map((w) => w.amount)}
+        </Panel>
+        <Panel title="Cash Forecast · 12 Weeks">
+          <div className="h-[170px]">
+            <SteelBars labels={(data?.forecast || []).map((w) => w.weekLabel)} data={(data?.forecast || []).map((w) => w.amount)} />
+          </div>
+        </Panel>
+        <Panel
+          title="Expected vs Collected"
+          action={<div className="flex items-center gap-3"><LegendSwatch color="#d6ebff" label="Expected" /><LegendSwatch color="#416180" label="Collected" /></div>}
+        >
+          <div className="h-[170px]">
+            <GroupedSteelBars
+              labels={(data?.expectedVsCollected || []).map((m) => m.month.slice(0, 3).toUpperCase())}
+              a={(data?.expectedVsCollected || []).map((m) => m.expected)}
+              b={(data?.expectedVsCollected || []).map((m) => m.collected)}
             />
           </div>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-5">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Verwacht vs. geïnd</h3>
-          <div className="h-48">
-            <ExpectedVsCollectedChart
-              labels={(data?.expectedVsCollected || []).map((m) => m.month)}
-              expected={(data?.expectedVsCollected || []).map((m) => m.expected)}
-              collected={(data?.expectedVsCollected || []).map((m) => m.collected)}
-            />
-          </div>
-        </div>
+        </Panel>
       </div>
 
       {/* View Toggle */}
-      <div className="flex items-center gap-2 mb-4">
-        <h2 className="text-sm font-semibold text-gray-900 mr-3">Werkweergave</h2>
-        {([
-          { key: 'werklijst' as const, icon: List, label: 'Werklijst' },
-          { key: 'kanban' as const, icon: Columns3, label: 'Kanban' },
-          { key: 'kalender' as const, icon: Calendar, label: 'Kalender' },
-        ]).map((v) => (
-          <button
-            key={v.key}
-            onClick={() => setView(v.key)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors duration-[120ms] ${
-              view === v.key ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            <v.icon className="w-3.5 h-3.5" strokeWidth={1.75} />
-            {v.label}
-          </button>
-        ))}
+      <div className="flex items-center gap-3 mb-4">
+        <h2 className="font-heading font-semibold uppercase text-[11px] tracking-[0.08em] text-ink/50">Work View</h2>
+        <SegmentedControl<ViewMode>
+          size="sm"
+          options={[{ value: 'werklijst', label: 'Worklist' }, { value: 'kanban', label: 'Kanban' }, { value: 'kalender', label: 'Calendar' }]}
+          value={view} onChange={setView}
+        />
       </div>
 
       {/* Views */}
