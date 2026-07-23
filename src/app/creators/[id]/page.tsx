@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { SkeletonPage } from '@/components/ui/skeleton'
 import { SlideOver } from '@/components/ui/slide-over'
-import { RevenueBarChart, LeadsSparkline } from '@/components/ui/charts'
+import { SteelBars, Sparkline } from '@/components/ui/industry-charts'
 import { formatDate, formatDateShort, eur } from '@/lib/format'
 import {
   ArrowLeft, Pencil, Mail, Phone, Calendar, FileText, Download,
@@ -236,15 +236,15 @@ export default function CreatorProfilePage() {
                 <div className="text-xs text-gray-500">Conversie</div>
               </div>
             </div>
-            <div className="relative h-16"><LeadsSparkline labels={rev.months} data={sparkData} /></div>
+            <div className="relative h-16"><Sparkline data={sparkData} /></div>
           </Card>
         </div>
       </div>
 
       {/* Omzet per maand */}
       <Card className="p-6 mb-6">
-        <h3 className="text-sm font-semibold text-gray-700 mb-4">Omzet per maand</h3>
-        <div className="relative h-48"><RevenueBarChart labels={rev.months} data={rev.omzetPerMaand} /></div>
+        <h3 className="font-heading font-semibold uppercase text-[12.5px] tracking-[0.08em] text-ink mb-4">Revenue / Month</h3>
+        <div className="relative h-48"><SteelBars labels={rev.months} data={rev.omzetPerMaand} /></div>
       </Card>
 
       {/* Recente leads */}
