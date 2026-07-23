@@ -33,17 +33,18 @@ interface CalendlyEvent {
   closer: { id: string; name: string } | null
 }
 
+// Mono steel — tone steps down per stage (Industry design language)
 const STAGE_CONFIG: { key: string; label: string; color: string; borderColor: string }[] = [
-  { key: 'LEAD',                label: 'LEAD',                color: 'bg-blue-50 text-blue-700',       borderColor: 'border-l-blue-400' },
-  { key: 'FOLLOW UP',           label: 'FOLLOW UP',           color: 'bg-sky-50 text-sky-700',         borderColor: 'border-l-sky-400' },
-  { key: 'ATTEMPT 1',           label: 'ATTEMPT 1',           color: 'bg-amber-50 text-amber-700',     borderColor: 'border-l-amber-400' },
-  { key: 'ATTEMPT 2',           label: 'ATTEMPT 2',           color: 'bg-orange-50 text-orange-700',   borderColor: 'border-l-orange-400' },
-  { key: 'ATTEMPT 3',           label: 'ATTEMPT 3',           color: 'bg-rose-50 text-rose-700',       borderColor: 'border-l-rose-400' },
-  { key: 'ATTEMPT 4',           label: 'ATTEMPT 4',           color: 'bg-red-50 text-red-700',         borderColor: 'border-l-red-400' },
-  { key: 'CLOSING CALL BOOKED', label: 'CLOSING CALL BOOKED', color: 'bg-emerald-50 text-emerald-700', borderColor: 'border-l-emerald-500' },
-  { key: 'CLOSED',              label: 'CLOSED',              color: 'bg-emerald-100 text-emerald-800', borderColor: 'border-l-emerald-600' },
-  { key: 'LOST - NO INTEREST',  label: 'LOST - NO INTEREST',  color: 'bg-gray-50 text-gray-500',       borderColor: 'border-l-gray-300' },
-  { key: 'LOST - BROKE',        label: 'LOST - BROKE',        color: 'bg-gray-50 text-gray-500',       borderColor: 'border-l-gray-300' },
+  { key: 'LEAD',                label: 'LEAD',                color: 'bg-accent-100 text-accent-800',  borderColor: 'border-l-accent-800' },
+  { key: 'FOLLOW UP',           label: 'FOLLOW UP',           color: 'bg-accent-100 text-accent-700',  borderColor: 'border-l-accent-700' },
+  { key: 'ATTEMPT 1',           label: 'ATTEMPT 1',           color: 'bg-accent-100 text-accent-600',  borderColor: 'border-l-accent-600' },
+  { key: 'ATTEMPT 2',           label: 'ATTEMPT 2',           color: 'bg-accent-100 text-accent-600',  borderColor: 'border-l-accent-500' },
+  { key: 'ATTEMPT 3',           label: 'ATTEMPT 3',           color: 'bg-accent-100 text-accent-500',  borderColor: 'border-l-accent-400' },
+  { key: 'ATTEMPT 4',           label: 'ATTEMPT 4',           color: 'bg-accent-100 text-accent-500',  borderColor: 'border-l-accent-300' },
+  { key: 'CLOSING CALL BOOKED', label: 'CLOSING CALL BOOKED', color: 'bg-accent-100 text-accent-800',  borderColor: 'border-l-accent-800' },
+  { key: 'CLOSED',              label: 'CLOSED',              color: 'bg-accent-100 text-accent-900',  borderColor: 'border-l-accent-900' },
+  { key: 'LOST - NO INTEREST',  label: 'LOST - NO INTEREST',  color: 'bg-neutral-100 text-ink/40',     borderColor: 'border-l-neutral-300' },
+  { key: 'LOST - BROKE',        label: 'LOST - BROKE',        color: 'bg-neutral-100 text-ink/40',     borderColor: 'border-l-neutral-300' },
 ]
 
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000
