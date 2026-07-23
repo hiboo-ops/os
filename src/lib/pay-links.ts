@@ -50,6 +50,11 @@ async function generateWhopPayLink(
   const productId = process.env.WHOP_PRODUCT_ID
   if (!apiKey || !companyId || !productId) return null
 
+  // Bedragen worden overal EXCL. btw ingevoerd/opgeslagen. Alleen de daadwerkelijke
+  // betaallink int incl. 21% btw → gross = excl × 1,21 (op 2 decimalen).
+  const VAT_RATE = 0.21
+  const grossAmount = Math.round(amount * (1 + VAT_RATE) * 100) / 100
+
   try {
     const res = await fetch('https://api.whop.com/api/v2/plans', {
       method: 'POST',
@@ -63,7 +68,7 @@ async function generateWhopPayLink(
         plan_type: 'one_time',
         base_currency: 'eur',
         currency: 'eur',
-        initial_price: amount,
+        initial_price: grossAmount,
         visibility: 'quick_link',
         unlimited_stock: true,
         metadata: {
