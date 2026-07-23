@@ -57,6 +57,7 @@ const nav: NavItem[] = [
       { href: '/eod/finance', label: 'EOD', icon: ClipboardList, roles: ['ADMIN', 'FINANCE'] },
     ],
   },
+  { href: '/creators', label: 'Creators', icon: Megaphone, roles: ['ADMIN', 'PARTNER_MANAGER'] },
   {
     href: '/partner-manager/crm', label: 'Partner Manager', icon: Handshake, roles: ['ADMIN', 'PARTNER_MANAGER'],
     children: [
