@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { KpiCard } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Blueprint } from '@/components/ui/blueprint'
+import { KpiStrip, KpiCell } from '@/components/ui/kpi-strip'
+import { ScreenHeader } from '@/components/ui/industry-ui'
 import { SkeletonPage } from '@/components/ui/skeleton'
 import { getCreatorList, getLeadCountsByCreator, Creator } from '@/lib/queries/creators'
 import { formatDate, eur } from '@/lib/format'
@@ -73,33 +75,34 @@ export default function CreatorsPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Creators</h1>
-          <p className="text-sm text-gray-500 mt-1">Overzicht van alle creators en hun prestaties</p>
-        </div>
-        <Button onClick={() => { setShowCreate(true); setError('') }}>
-          <Plus className="w-4 h-4" strokeWidth={1.75} /> Nieuwe partner
-        </Button>
-      </div>
+      <ScreenHeader
+        eyebrow="REVENUE / CREATORS"
+        title="Creators"
+        right={
+          <button onClick={() => { setShowCreate(true); setError('') }} className="inline-flex items-center gap-2 px-4 h-9 bg-accent text-white font-heading font-semibold uppercase text-[11px] tracking-[0.05em] hover:bg-accent-800 transition">
+            <Plus className="w-4 h-4" strokeWidth={1.5} /> New Partner
+          </button>
+        }
+      />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <KpiCard label="Actieve creators" value={active.length} caption={`${creators.length} totaal`} />
-        <KpiCard label="Gem. CAC" value={eur(avgCac)} caption={`${cacValues.length} met CAC`} />
-        <KpiCard label="Totaal setup fees" value={eur(totalSetupFees)} />
-        <KpiCard label="Totaal leads" value={totalLeads} caption="via alle creators" />
+      <div className="mb-6">
+        <KpiStrip cols={4}>
+          <KpiCell label="Active Creators" value={active.length} caption={`${creators.length} total`} />
+          <KpiCell label="Avg CAC" value={eur(avgCac)} caption={`${cacValues.length} with CAC`} />
+          <KpiCell label="Total Setup Fees" value={eur(totalSetupFees)} />
+          <KpiCell label="Total Leads" value={totalLeads} caption="via all creators" />
+        </KpiStrip>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <h3 className="text-sm font-semibold text-gray-700">Alle creators ({creators.length})</h3>
+      <Blueprint>
+        <div className="px-5 py-3 border-b border-divider">
+          <h3 className="font-heading font-semibold uppercase text-[12.5px] tracking-[0.08em] text-ink">All Creators ({creators.length})</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100">
+              <tr className="text-left font-heading font-semibold uppercase text-[9.5px] tracking-[0.1em] text-ink/50 border-b border-divider">
                 <th className="px-6 py-3">Naam</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Socials</th>
@@ -160,7 +163,7 @@ export default function CreatorsPage() {
             </tbody>
           </table>
         </div>
-      </div>
+      </Blueprint>
 
       {/* Nieuwe partner modal */}
       {showCreate && (

@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { getClientList } from '@/lib/queries/clients'
-import { KpiCard } from '@/components/ui/card'
+import { KpiStrip, KpiCell } from '@/components/ui/kpi-strip'
+import { ScreenHeader } from '@/components/ui/industry-ui'
 import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
 import { SkeletonPage } from '@/components/ui/skeleton'
@@ -36,16 +37,15 @@ export default function ClientsPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-xl font-semibold text-gray-900">Clients</h1>
-        <p className="text-sm text-gray-500 mt-1">{clients.length} klanten in het systeem</p>
-      </div>
+      <ScreenHeader eyebrow="OPERATIONS / CLIENTS" title="Clients" />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <KpiCard label="Totaal" value={clients.length} />
-        <KpiCard label="Actief" value={clients.filter(c => c.status === 'ACTIVE').length} captionColor="success" />
-        <KpiCard label="Churned" value={clients.filter(c => c.status === 'CHURNED').length} captionColor="danger" />
-        <KpiCard label="Paused" value={clients.filter(c => c.status === 'PAUSED').length} />
+      <div className="mb-6">
+        <KpiStrip cols={4}>
+          <KpiCell label="Total" value={clients.length} />
+          <KpiCell label="Active" value={clients.filter(c => c.status === 'ACTIVE').length} />
+          <KpiCell label="Churned" value={clients.filter(c => c.status === 'CHURNED').length} danger={clients.filter(c => c.status === 'CHURNED').length > 0} />
+          <KpiCell label="Paused" value={clients.filter(c => c.status === 'PAUSED').length} />
+        </KpiStrip>
       </div>
 
       {/* Filters */}
@@ -72,11 +72,11 @@ export default function ClientsPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="bg-white border border-divider overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100">
+              <tr className="text-left font-heading font-semibold uppercase text-[9.5px] tracking-[0.1em] text-ink/50 border-b border-divider">
                 <th className="px-5 py-3">Naam</th>
                 <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Status</th>
