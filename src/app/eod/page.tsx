@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { KpiCard } from '@/components/ui/card'
+import { KpiStrip, KpiCell } from '@/components/ui/kpi-strip'
+import { ScreenHeader } from '@/components/ui/industry-ui'
 import type { EodReport } from '@/lib/queries/eod'
 import { formatDate } from '@/lib/format'
 
@@ -123,23 +124,18 @@ export default function EodOverviewPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-gray-900">EOD Overzicht</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          <span className="tabular-nums">{totalReports}</span> rapportage{totalReports !== 1 ? 's' : ''} in deze periode
-        </p>
-      </div>
+      <ScreenHeader eyebrow="DELIVERY & SYSTEM" title="EOD Reports" />
 
       {/* Rol-tabs */}
-      <div className="flex items-center gap-1 mb-5 border-b border-gray-100">
+      <div className="flex items-center gap-1 mb-5 border-b border-divider">
         {ROLE_TABS.map(tab => (
           <button
             key={tab.key}
             onClick={() => setRoleType(tab.key)}
-            className={`px-3.5 py-2 text-sm font-medium -mb-px border-b-2 transition-colors duration-[120ms] ${
+            className={`px-3.5 py-2 font-heading font-semibold uppercase text-[11px] tracking-[0.06em] -mb-px border-b-2 transition-colors duration-[120ms] ${
               roleType === tab.key
-                ? 'border-accent-700 text-gray-900'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-accent-800 text-ink'
+                : 'border-transparent text-ink/45 hover:text-ink/70'
             }`}
           >
             {tab.label}
@@ -170,10 +166,12 @@ export default function EodOverviewPage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <KpiCard label="Rapportages" value={totalReports} />
-        <KpiCard label="Dagen" value={uniqueDays} />
-        <KpiCard label="Personen" value={uniquePeople} />
+      <div className="mb-6">
+        <KpiStrip cols={3}>
+          <KpiCell label="Reports" value={totalReports} />
+          <KpiCell label="Days" value={uniqueDays} />
+          <KpiCell label="People" value={uniquePeople} />
+        </KpiStrip>
       </div>
 
       {/* Tabel */}

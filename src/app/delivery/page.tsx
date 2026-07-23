@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { KpiCard, Card } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
+import { KpiStrip, KpiCell } from '@/components/ui/kpi-strip'
+import { ScreenHeader } from '@/components/ui/industry-ui'
 import { Badge } from '@/components/ui/badge'
 import { formatDate } from '@/lib/format'
 import { getDeliveryStats, getCoachesWithStats } from '@/lib/queries/delivery'
@@ -35,21 +37,22 @@ export default function DeliveryOverview() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Delivery Overview</h1>
-          <p className="text-sm text-gray-500 mt-0.5"><span className="tabular-nums">{stats.total}</span> studenten · <span className="tabular-nums">{coaches.length}</span> coaches</p>
-        </div>
-      </div>
+      <ScreenHeader
+        eyebrow="DELIVERY & SYSTEM"
+        title="Delivery Overview"
+        right={<span className="font-body text-[12px] text-ink/50"><span className="font-heading font-semibold text-ink tabular-nums">{stats.total}</span> STUDENTS · <span className="font-heading font-semibold text-ink tabular-nums">{coaches.length}</span> COACHES</span>}
+      />
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
-        <KpiCard label="Total students" value={stats.total} />
-        <KpiCard label="Fase 1" value={stats.phase1} caption="leren" />
-        <KpiCard label="Fase 2" value={stats.phase2} caption="opdrachten" />
-        <KpiCard label="Fase 3" value={stats.phase3} caption="opdrachtgevers" />
-        <KpiCard label="Tevredenheid" value={stats.avgSatisfaction ?? '—'} captionColor={stats.avgSatisfaction && stats.avgSatisfaction >= 8 ? 'success' : stats.avgSatisfaction && stats.avgSatisfaction >= 6 ? 'warning' : 'default'} />
-        <KpiCard label="Needs attention" value={stats.needsAttention} caption={`${stats.yellow} yellow`} captionColor={stats.needsAttention > 0 ? 'danger' : 'default'} />
+      <div className="mb-6">
+        <KpiStrip cols={6}>
+          <KpiCell size="sm" label="Total Students" value={stats.total} />
+          <KpiCell size="sm" label="Phase 1" value={stats.phase1} caption="leren" />
+          <KpiCell size="sm" label="Phase 2" value={stats.phase2} caption="opdrachten" />
+          <KpiCell size="sm" label="Phase 3" value={stats.phase3} caption="opdrachtgevers" />
+          <KpiCell size="sm" label="Satisfaction" value={stats.avgSatisfaction ?? '—'} />
+          <KpiCell size="sm" label="Needs Attention" value={stats.needsAttention} caption={`${stats.yellow} yellow`} danger={stats.needsAttention > 0} />
+        </KpiStrip>
       </div>
 
       {/* Quick links */}
