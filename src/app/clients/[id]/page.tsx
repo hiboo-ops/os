@@ -16,7 +16,7 @@ import { ArrowLeft, Pencil, MessageCircle, Mail, Phone, Calendar, AlertTriangle,
 
 const vmLabels: Record<string, string> = { HIGH_TICKET_CLOSING: 'HIGH TICKET CLOSING', VA: 'VIRTUAL ASSISTANT', APPOINTMENT_SETTING: 'APPOINTMENT SETTING' }
 const activityDots: Record<string, string> = { GREEN: 'bg-emerald-500', YELLOW: 'bg-amber-400', RED: 'bg-red-500' }
-const activityText: Record<string, string> = { GREEN: 'text-emerald-600', YELLOW: 'text-amber-600', RED: 'text-red-600' }
+const activityText: Record<string, string> = { GREEN: 'text-accent-700', YELLOW: 'text-amber-600', RED: 'text-red-600' }
 
 function daysLeft(startDate: string | null) {
   if (!startDate) return null
@@ -88,8 +88,8 @@ export default function ClientProfilePage() {
     <div>
       {/* Breadcrumb */}
       <div className="mb-6">
-        <Link href="/clients" className="text-sm text-gray-500 hover:text-gray-700 inline-flex items-center gap-1.5 transition-colors duration-[120ms]">
-          <ArrowLeft className="w-4 h-4" strokeWidth={1.75} /> Clients
+        <Link href="/clients" className="font-heading font-semibold uppercase text-[11px] tracking-[0.08em] text-ink/55 hover:text-accent-800 inline-flex items-center gap-1.5 transition-colors duration-[120ms]">
+          <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1.5} /> Clients
         </Link>
       </div>
 
@@ -121,11 +121,11 @@ export default function ClientProfilePage() {
         <div className="border-t border-gray-100 px-6 py-4 grid grid-cols-3 lg:grid-cols-6 gap-6">
           {[
             { label: 'TCV', value: eur(client.tcv) },
-            { label: 'Betaald', value: eur(totalPaid), color: 'text-emerald-600' },
+            { label: 'Betaald', value: eur(totalPaid), color: 'text-accent-700' },
             { label: 'Openstaand', value: eur(totalOpen) },
-            { label: 'Collection', value: `${collectionRate}%`, color: collectionRate >= 80 ? 'text-emerald-600' : 'text-amber-600' },
+            { label: 'Collection', value: `${collectionRate}%`, color: collectionRate >= 80 ? 'text-accent-700' : 'text-amber-600' },
             { label: 'Coaching', value: `${student?.coaching_hours || 0}h` },
-            { label: 'Score', value: avgScore || '—', color: Number(avgScore) >= 8 ? 'text-emerald-600' : '' },
+            { label: 'Score', value: avgScore || '—', color: Number(avgScore) >= 8 ? 'text-accent-700' : '' },
           ].map(kpi => (
             <div key={kpi.label}>
               <div className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">{kpi.label}</div>
@@ -177,8 +177,8 @@ export default function ClientProfilePage() {
                     </div>
                     <div className="flex gap-0.5 mb-2">
                       {Array.from({ length: 10 }, (_, i) => {
-                        const color = i < approvedHw ? 'bg-emerald-400' : i < approvedHw + redoHw ? 'bg-red-400' : i < approvedHw + redoHw + submittedHw ? 'bg-amber-400' : 'bg-gray-100'
-                        return <div key={i} className={`flex-1 h-2 rounded-sm ${color}`} />
+                        const color = i < approvedHw ? 'bg-accent-700' : i < approvedHw + redoHw ? 'bg-[var(--color-danger)]' : i < approvedHw + redoHw + submittedHw ? 'bg-accent-300' : 'bg-neutral-200'
+                        return <div key={i} className={`flex-1 h-2 ${color}`} />
                       })}
                     </div>
                     <div className="flex gap-4 text-xs text-gray-500">
@@ -211,7 +211,7 @@ export default function ClientProfilePage() {
                     <CardContent>
                       <div className="space-y-1.5">
                         {activePayments.map(p => (
-                          <div key={p.id} className={`flex items-center gap-3 rounded-md px-4 py-2.5 ${p.status === 'PAID' ? 'bg-emerald-50/60' : p.status === 'OVERDUE' ? 'bg-red-50/60 ring-1 ring-red-200' : 'bg-blue-50/60 ring-1 ring-blue-200'}`}>
+                          <div key={p.id} className={`flex items-center gap-3 px-4 py-2.5 ${p.status === 'PAID' ? 'bg-accent-100/50' : p.status === 'OVERDUE' ? 'bg-[#f7ecec] ring-1 ring-[#e8cdcc]' : 'bg-neutral-100 ring-1 ring-divider'}`}>
                             <span className="text-xs font-medium text-gray-400 w-5 tabular-nums">{p.payment_number}</span>
                             <span className="text-sm text-gray-900 flex-1 tabular-nums">{eur(p.amount)}</span>
                             <span className="text-xs text-gray-400 w-24">{formatDateShort(p.due_date)}</span>
@@ -296,7 +296,7 @@ export default function ClientProfilePage() {
                       <div key={f.id} className="rounded-md px-3 py-2.5 bg-gray-50">
                         <div className="flex justify-between mb-0.5">
                           <span className="text-xs text-gray-500">{formatDate(f.date)}</span>
-                          <span className={`text-sm font-semibold tabular-nums ${(f.score || 0) >= 8 ? 'text-emerald-600' : (f.score || 0) >= 6 ? 'text-amber-600' : 'text-red-600'}`}>{f.score}/10</span>
+                          <span className={`text-sm font-semibold tabular-nums ${(f.score || 0) >= 8 ? 'text-accent-700' : (f.score || 0) >= 6 ? 'text-amber-600' : 'text-red-600'}`}>{f.score}/10</span>
                         </div>
                         {f.comments && <p className="text-xs text-gray-600">{f.comments}</p>}
                       </div>
@@ -377,7 +377,7 @@ export default function ClientProfilePage() {
               <Button variant="primary" size="sm" onClick={saveNotes}>
                 <Save className="w-3.5 h-3.5" /> Opslaan
               </Button>
-              {notesSaved && <span className="text-xs text-emerald-600 inline-flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Opgeslagen</span>}
+              {notesSaved && <span className="text-xs text-accent-700 inline-flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Opgeslagen</span>}
             </div>
           </Card>
         </div>
