@@ -31,8 +31,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Sidebar />
-      <main className="md:ml-60 min-h-screen pt-14 md:pt-0">
-        <div className="px-6 lg:px-8 py-6 lg:py-8">
+      <main className="md:ml-[236px] min-h-screen pt-14 md:pt-0">
+        <div className="px-7 py-7">
           {creatorBlocked ? null : children}
         </div>
       </main>

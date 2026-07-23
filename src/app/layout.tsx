@@ -1,17 +1,25 @@
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
+import { Barlow, Barlow_Condensed } from "next/font/google"
 import "./globals.css"
 import { AppShell } from "@/components/app-shell"
 
-const inter = Inter({
+const barlow = Barlow({
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
   display: "swap",
-  variable: "--font-inter",
+  variable: "--font-barlow",
+})
+
+const barlowCondensed = Barlow_Condensed({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  display: "swap",
+  variable: "--font-barlow-condensed",
 })
 
 export const metadata: Metadata = {
   title: "Hiboo OS",
-  description: "Hiboo Operation System",
+  description: "Hiboo Operating System",
 }
 
 export default function RootLayout({
@@ -20,7 +28,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="nl" className={`${inter.variable} h-full`}>
+    <html lang="nl" className={`${barlow.variable} ${barlowCondensed.variable} h-full`}>
       <body className="min-h-full antialiased">
         <AppShell>{children}</AppShell>
       </body>

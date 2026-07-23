@@ -1,64 +1,110 @@
 @import "tailwindcss";
 
 @theme inline {
-  /* ── Accent (slate-blue, spaarzaam) ── */
-  --color-accent-50:  #f8fafc;
-  --color-accent-100: #f1f5f9;
-  --color-accent-200: #e2e8f0;
-  --color-accent-300: #cbd5e1;
-  --color-accent-400: #94a3b8;
-  --color-accent-500: #64748b;
-  --color-accent-600: #475569;
-  --color-accent-700: #334155;
-  --color-accent-800: #1e293b;
-  --color-accent-900: #0f172a;
+  /* ── Accent (steel-blue mono — Industry design language) ── */
+  --color-accent-50:  #f6faff;
+  --color-accent-100: #eef6ff;
+  --color-accent-200: #d6ebff;
+  --color-accent-300: #b5d9fd;
+  --color-accent-400: #94bce3;
+  --color-accent-500: #749dc4;
+  --color-accent-600: #597ea3;
+  --color-accent-700: #416180;
+  --color-accent-800: #2c455d;
+  --color-accent-900: #1d2d3d;
+  --color-accent: #5980a6;
 
-  /* ── Keep brand alias for backwards compat during migration ── */
-  --color-brand-50:  #f8fafc;
-  --color-brand-100: #f1f5f9;
-  --color-brand-200: #e2e8f0;
-  --color-brand-300: #cbd5e1;
-  --color-brand-400: #94a3b8;
-  --color-brand-500: #64748b;
-  --color-brand-600: #475569;
-  --color-brand-700: #334155;
-  --color-brand-800: #1e293b;
-  --color-brand-900: #0f172a;
+  /* ── Backwards-compat brand alias → steel ── */
+  --color-brand-100: #eef6ff;
+  --color-brand-500: #749dc4;
+  --color-brand-700: #416180;
+  --color-brand-800: #2c455d;
+
+  /* ── Neutrals ── */
+  --color-neutral-100: #f5f5f8;
+  --color-neutral-200: #e7e7ea;
+  --color-neutral-300: #d4d4d7;
+
+  /* ── Ink + divider ── */
+  --color-ink: #1d1f20;
+  --color-divider: rgba(29, 31, 32, 0.12);
+
+  /* ── Status (sparse — only real signals) ── */
+  --color-danger: #a5443f;
 
   /* ── Typography ── */
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-sans: var(--font-barlow), system-ui, sans-serif;
+  --font-body: var(--font-barlow), system-ui, sans-serif;
+  --font-heading: var(--font-barlow-condensed), system-ui, sans-serif;
 
-  /* ── Radius ── */
-  --radius-sm: 6px;
-  --radius-DEFAULT: 8px;
-  --radius-lg: 10px;
+  /* ── Radius — SQUARE everywhere (technical blueprint look) ── */
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
 
-  /* ── Shadows (subtle, border-first) ── */
+  /* ── Shadows (flat by default; only floating panels) ── */
   --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.03);
-  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.03);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.03);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.06), 0 4px 6px -4px rgb(0 0 0 / 0.03);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 6px 16px -4px rgb(0 0 0 / 0.10);
+  --shadow-lg: 0 20px 50px -12px rgb(0 0 0 / 0.18);
 }
 
 /* ── Base ── */
 body {
   background: #ffffff;
-  color: #111827;
-  font-family: var(--font-sans);
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  color: var(--color-ink);
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Tabular nums for all financial/metric data ── */
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
-}
-
-/* ── Heading tightness ── */
+/* ── Chrome (headings) use the condensed heading font ── */
 h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 600;
   letter-spacing: -0.01em;
 }
+
+/* Font utilities */
+.font-heading { font-family: var(--font-heading); }
+.font-body { font-family: var(--font-body); }
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* Eyebrow helper (Industry chrome) */
+.eyebrow {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-accent-700);
+}
+
+/* Blueprint corner registration marks (used by the Blueprint component) */
+.bp-corner {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  color: rgba(29, 31, 32, 0.28);
+  pointer-events: none;
+}
+.bp-corner::before,
+.bp-corner::after {
+  content: "";
+  position: absolute;
+  background: currentColor;
+}
+.bp-corner::before { left: 50%; top: 0; width: 1px; height: 100%; transform: translateX(-0.5px); }
+.bp-corner::after { top: 50%; left: 0; height: 1px; width: 100%; transform: translateY(-0.5px); }
+.bp-tl { top: -1px; left: -1px; }
+.bp-tr { top: -1px; right: -1px; }
+.bp-bl { bottom: -1px; left: -1px; }
+.bp-br { bottom: -1px; right: -1px; }
 
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
@@ -72,13 +118,13 @@ h1, h2, h3, h4, h5, h6 {
 
 /* ── Focus visible ── */
 :focus-visible {
-  outline: 2px solid #475569;
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: 0;
 }
 
 /* ── Selection ── */
 ::selection {
-  background: #e2e8f0;
-  color: #0f172a;
+  background: var(--color-accent-200);
+  color: var(--color-accent-900);
 }
