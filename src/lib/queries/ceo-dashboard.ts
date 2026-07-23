@@ -127,7 +127,7 @@ export async function getCeoDashboardData(period: Period = 'all'): Promise<CeoDa
     admin.from('payments').select('id, amount, paid, paid_date, status, refund_amount, refund_date, legacy, collector_id, account_id'),
 
     // 5. Incoming payments
-    admin.from('incoming_payments').select('id, amount, due_date, status, contract_id, account_id'),
+    admin.from('incoming_payments').select('id, amount, due_date, status, contract_id, account_id, installment_number'),
 
     // 6. Accounts (with churn)
     admin.from('accounts').select('id, ltv, creator_id, closer_id, churn_date, is_legacy, created_at, status'),
@@ -149,7 +149,7 @@ export async function getCeoDashboardData(period: Period = 'all'): Promise<CeoDa
   const leads = (leadsResult.data || []) as unknown as { id: string; date_received: string | null; creator_id: string | null }[]
   const contracts = (contractsResult.data || []) as unknown as { id: string; deal_value: number | null; type: string | null; payment_plan: string | null; account_id: string | null; created_at: string }[]
   const payments = (paymentsResult.data || []) as unknown as { id: string; amount: number | null; paid: boolean; paid_date: string | null; status: string; refund_amount: number | null; refund_date: string | null; legacy: boolean; collector_id: string | null; account_id: string | null }[]
-  const incoming = (incomingResult.data || []) as unknown as { id: string; amount: number | null; due_date: string | null; status: string; contract_id: string | null; account_id: string | null }[]
+  const incoming = (incomingResult.data || []) as unknown as { id: string; amount: number | null; due_date: string | null; status: string; contract_id: string | null; account_id: string | null; installment_number: number | null }[]
   const accounts = (accountsResult.data || []) as unknown as { id: string; ltv: number | null; creator_id: string | null; closer_id: string | null; churn_date: string | null; is_legacy: boolean; created_at: string; status: string }[]
   const npsRows = (npsResult.data || []) as unknown as { score: number }[]
   const costs = (costsResult.data || []) as unknown as { amount: number | null; category: string; date: string }[]
@@ -158,6 +158,14 @@ export async function getCeoDashboardData(period: Period = 'all'): Promise<CeoDa
 
   const closerMap = Object.fromEntries(closers.map(c => [c.id, c.name]))
   const creatorMap = Object.fromEntries(creators.map(c => [c.id, c.name]))
+
+  // Legacy uitsluiten: geïmporteerde legacy-accounts + hun termijnen/betalingen
+  // tellen NIET mee in omzet/cash/MRR/outstanding/collection.
+  const legacyAccountIds = new Set(accounts.filter(a => a.is_legacy).map(a => a.id))
+  const isLegacyPayment = (p: { legacy: boolean; account_id: string | null }) =>
+    p.legacy || (p.account_id != null && legacyAccountIds.has(p.account_id))
+  const isLegacyIncoming = (ip: { account_id: string | null }) =>
+    ip.account_id != null && legacyAccountIds.has(ip.account_id)
 
   // ── Comparisons (today vs yesterday) ──
   const callsToday = calls.filter(c => c.date_start_time?.slice(0, 10) === today).length
@@ -217,6 +225,7 @@ export async function getCeoDashboardData(period: Period = 'all'): Promise<CeoDa
   let refundCount = 0
   for (const p of payments) {
     if (!p.paid) continue
+    if (isLegacyPayment(p)) continue
     if (!inPeriod(p.paid_date)) continue
     cash += p.amount || 0
     totalPaidPayments++
@@ -232,9 +241,10 @@ export async function getCeoDashboardData(period: Period = 'all'): Promise<CeoDa
   }
   const refundRate = totalPaidPayments > 0 ? Math.round((refundCount / totalPaidPayments) * 100) : 0
 
-  // ── Collection rate ──
+  // ── Collection rate (legacy uitgesloten) ──
   let paidIpCount = 0, openIpCount = 0
   for (const ip of incoming) {
+    if (isLegacyIncoming(ip)) continue
     if (ip.status === 'PAID') paidIpCount++
     else if (ip.status !== 'REFUNDED') openIpCount++
   }
@@ -242,10 +252,13 @@ export async function getCeoDashboardData(period: Period = 'all'): Promise<CeoDa
     ? Math.round((paidIpCount / (paidIpCount + openIpCount)) * 100)
     : 0
 
-  // ── MRR (expected incoming payments this month, not yet paid) ──
+  // ── MRR: recurring termijn-inkomsten (installment #2+) die deze maand vervallen,
+  //    nog niet betaald, legacy uitgesloten. First deposits (#1) tellen niet mee. ──
   let mrr = 0
   for (const ip of incoming) {
+    if (isLegacyIncoming(ip)) continue
     if (ip.status === 'PAID' || ip.status === 'REFUNDED') continue
+    if ((ip.installment_number ?? 1) < 2) continue
     if (ip.due_date && ip.due_date >= monthStart && ip.due_date <= monthEnd) {
       mrr += ip.amount || 0
     }
@@ -264,26 +277,20 @@ export async function getCeoDashboardData(period: Period = 'all'): Promise<CeoDa
     ? Math.round((npsRows.reduce((s, r) => s + r.score, 0) / npsRows.length) * 10) / 10
     : null
 
-  // ── Outstanding ──
+  // ── Outstanding (legacy uitgesloten) ──
   let outstandingToday = 0, outstandingWeek = 0, outstandingMonth = 0
   for (const ip of incoming) {
+    if (isLegacyIncoming(ip)) continue
     if (ip.status === 'PAID' || ip.status === 'REFUNDED') continue
     const amt = ip.amount || 0
     if (!ip.due_date) continue
     if (ip.due_date <= today) outstandingToday += amt
     if (ip.due_date >= weekStart && ip.due_date <= today) outstandingWeek += amt
-    // This month total open
     if (ip.due_date >= monthStart && ip.due_date <= monthEnd) outstandingMonth += amt
   }
-  // outstandingToday = all overdue up to today
-  outstandingToday = 0
-  for (const ip of incoming) {
-    if (ip.status === 'PAID' || ip.status === 'REFUNDED') continue
-    if (ip.due_date && ip.due_date <= today) outstandingToday += ip.amount || 0
-  }
 
-  // ── Financial: Revenue, Cost, P&L ──
-  const revenue = omzet || cash // deal value or cash as fallback
+  // ── Financial: Revenue (= cash collected), Cost, P&L ──
+  const revenue = cash
   let totalCost = 0
   const catCosts: Record<string, number> = {}
   for (const c of costs) {
@@ -308,6 +315,7 @@ export async function getCeoDashboardData(period: Period = 'all'): Promise<CeoDa
     let mCash = 0
     for (const p of payments) {
       if (!p.paid || p.paid_date == null) continue
+      if (isLegacyPayment(p)) continue
       if (p.paid_date >= mStart && p.paid_date <= mEnd) mCash += p.amount || 0
     }
 
@@ -330,7 +338,7 @@ export async function getCeoDashboardData(period: Period = 'all'): Promise<CeoDa
   for (const acc of nonLegacyAccounts) {
     if (!acc.creator_id) continue
     // Get payments for this account
-    const accPayments = payments.filter(p => p.account_id === acc.id && p.paid)
+    const accPayments = payments.filter(p => p.account_id === acc.id && p.paid && !p.legacy)
     const accCash = accPayments.reduce((s, p) => s + (p.amount || 0), 0)
     creatorRev[acc.creator_id] = (creatorRev[acc.creator_id] || 0) + accCash
   }
@@ -352,7 +360,7 @@ export async function getCeoDashboardData(period: Period = 'all'): Promise<CeoDa
   let totalCreatorCash = 0
   for (const acc of nonLegacyAccounts) {
     if (!acc.creator_id) continue
-    const accPayments = payments.filter(p => p.account_id === acc.id && p.paid)
+    const accPayments = payments.filter(p => p.account_id === acc.id && p.paid && !p.legacy)
     totalCreatorCash += accPayments.reduce((s, p) => s + (p.amount || 0), 0)
   }
 
