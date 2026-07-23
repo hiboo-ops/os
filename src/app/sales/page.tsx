@@ -1,19 +1,13 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { KpiCard } from '@/components/ui/card'
 import { SkeletonPage } from '@/components/ui/skeleton'
-import { eur, formatDate } from '@/lib/format'
+import { eur } from '@/lib/format'
 import { getAllCalls, calculateMetrics } from '@/lib/queries/sales'
-import type { Call, CallFilters, SalesMetrics } from '@/lib/queries/sales'
-import {
-  Phone, TrendingUp, TrendingDown, DollarSign, Target,
-  UserX, CalendarX, ArrowUpRight, ArrowDownRight, Minus,
-  Filter, X, User,
-} from 'lucide-react'
-import { CallsPerWeekChart, DealValuePerWeekChart, CashPerWeekChart, ClosingRatePerWeekChart } from './components/sales-charts'
-
-const iconProps = { strokeWidth: 1.75 } as const
+import type { Call, CallFilters } from '@/lib/queries/sales'
+import { ScreenHeader, SegmentedControl, Panel } from '@/components/ui/industry-ui'
+import { KpiStrip, KpiCell } from '@/components/ui/kpi-strip'
+import { SteelBars, SteelArea, Sparkline, SegmentBar } from '@/components/ui/industry-charts'
 
 type TimePeriod = 'all' | 'week' | 'month' | 'custom'
 
@@ -23,98 +17,40 @@ function getWeekNumber(d: Date): number {
   return Math.ceil((diff / 86400000 + start.getDay() + 1) / 7)
 }
 
-function getPreviousPeriodFilters(
-  period: TimePeriod,
-  dateFrom: string,
-  dateTo: string,
-): CallFilters {
+function getPreviousPeriodFilters(period: TimePeriod, dateFrom: string, dateTo: string): CallFilters {
   const now = new Date()
-
   switch (period) {
-    case 'week': {
-      const weekNum = getWeekNumber(now)
-      return { week: weekNum > 1 ? weekNum - 1 : 52 }
-    }
-    case 'month': {
-      const m = now.getMonth() + 1
-      return { month: m > 1 ? m - 1 : 12 }
-    }
+    case 'week': { const w = getWeekNumber(now); return { week: w > 1 ? w - 1 : 52 } }
+    case 'month': { const m = now.getMonth() + 1; return { month: m > 1 ? m - 1 : 12 } }
     case 'custom': {
       if (!dateFrom || !dateTo) return {}
-      const from = new Date(dateFrom)
-      const to = new Date(dateTo)
+      const from = new Date(dateFrom), to = new Date(dateTo)
       const rangeMs = to.getTime() - from.getTime()
       const prevTo = new Date(from.getTime() - 1)
       const prevFrom = new Date(prevTo.getTime() - rangeMs)
-      return {
-        dateFrom: prevFrom.toISOString().split('T')[0],
-        dateTo: prevTo.toISOString().split('T')[0],
-      }
+      return { dateFrom: prevFrom.toISOString().split('T')[0], dateTo: prevTo.toISOString().split('T')[0] }
     }
-    default:
-      return {}
+    default: return {}
   }
 }
 
-function getCurrentPeriodFilters(
-  period: TimePeriod,
-  dateFrom: string,
-  dateTo: string,
-): CallFilters {
+function getCurrentPeriodFilters(period: TimePeriod, dateFrom: string, dateTo: string): CallFilters {
   const now = new Date()
   switch (period) {
-    case 'week':
-      return { week: getWeekNumber(now) }
-    case 'month':
-      return { month: now.getMonth() + 1 }
-    case 'custom':
-      if (dateFrom && dateTo) return { dateFrom, dateTo }
-      return {}
-    default:
-      return {}
+    case 'week': return { week: getWeekNumber(now) }
+    case 'month': return { month: now.getMonth() + 1 }
+    case 'custom': return dateFrom && dateTo ? { dateFrom, dateTo } : {}
+    default: return {}
   }
 }
 
-function ChangeIndicator({ current, previous, isPercentage = false, invert = false }: {
-  current: number
-  previous: number
-  isPercentage?: boolean
-  invert?: boolean
-}) {
-  if (previous === 0 && current === 0) return <span className="text-xs text-gray-400">—</span>
-
-  const diff = previous > 0
-    ? ((current - previous) / previous) * 100
-    : current > 0 ? 100 : 0
-
-  const isPositive = invert ? diff < 0 : diff > 0
-  const isNeutral = Math.abs(diff) < 0.5
-
-  if (isNeutral) {
-    return (
-      <span className="inline-flex items-center gap-0.5 text-xs text-gray-400">
-        <Minus className="w-3 h-3" {...iconProps} />
-        <span className="tabular-nums">0%</span>
-      </span>
-    )
-  }
-
-  return (
-    <span className={`inline-flex items-center gap-0.5 text-xs ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
-      {diff > 0
-        ? <ArrowUpRight className="w-3 h-3" {...iconProps} />
-        : <ArrowDownRight className="w-3 h-3" {...iconProps} />
-      }
-      <span className="tabular-nums">{Math.abs(Math.round(diff))}%</span>
-    </span>
-  )
-}
+const selectCls = 'h-9 text-[12.5px] font-body border border-divider px-3 bg-white text-ink/70 focus:outline-none focus:ring-2 focus:ring-accent appearance-none cursor-pointer'
 
 export default function SalesOverview() {
   const [allCalls, setAllCalls] = useState<Call[]>([])
   const [contractMix, setContractMix] = useState<{
-    contracts: { call_id: string | null; count: number; deal_value: number }[];
-    cashByCall: Record<string, number>;
+    contracts: { call_id: string | null; count: number; deal_value: number }[]
+    cashByCall: Record<string, number>
   }>({ contracts: [], cashByCall: {} })
   const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState<TimePeriod>('all')
@@ -125,355 +61,190 @@ export default function SalesOverview() {
   const [closerFilter, setCloserFilter] = useState('')
 
   useEffect(() => {
-    getAllCalls().then(data => {
-      setAllCalls(data)
-      setLoading(false)
-    })
-    fetch('/api/sales/contract-mix').then(r => r.json()).then(d => {
-      if (d && d.contracts) setContractMix(d)
-    }).catch(() => {})
+    getAllCalls().then(data => { setAllCalls(data); setLoading(false) })
+    fetch('/api/sales/contract-mix').then(r => r.json()).then(d => { if (d && d.contracts) setContractMix(d) }).catch(() => {})
   }, [])
 
-  const closers = useMemo(() =>
-    [...new Set(allCalls.map(c => c.closer?.name).filter(Boolean))].sort() as string[],
-    [allCalls]
-  )
+  const closers = useMemo(() => [...new Set(allCalls.map(c => c.closer?.name).filter(Boolean))].sort() as string[], [allCalls])
 
-  // Filter calls client-side for responsiveness
   const filteredCalls = useMemo(() => {
-    let calls = allCalls
-
-    if (closerFilter) {
-      calls = calls.filter(c => c.closer?.name === closerFilter)
-    }
-    if (sourceFilter) {
-      calls = calls.filter(c => c.source === sourceFilter)
-    }
-    if (typeFilter) {
-      calls = calls.filter(c => c.source_type === typeFilter)
-    }
-
-    const currentFilters = getCurrentPeriodFilters(period, dateFrom, dateTo)
-
-    if (currentFilters.week) {
-      calls = calls.filter(c => c.week === currentFilters.week)
-    }
-    if (currentFilters.month) {
-      calls = calls.filter(c => c.month === currentFilters.month)
-    }
-    if (currentFilters.dateFrom) {
-      calls = calls.filter(c => c.date_start_time && c.date_start_time >= currentFilters.dateFrom!)
-    }
-    if (currentFilters.dateTo) {
-      calls = calls.filter(c => c.date_start_time && c.date_start_time <= currentFilters.dateTo! + 'T23:59:59')
-    }
-
-    return calls
-  }, [allCalls, period, dateFrom, dateTo, sourceFilter, typeFilter, closerFilter])
-
-  // Previous period calls for comparison
-  const previousCalls = useMemo(() => {
-    if (period === 'all') return []
-
     let calls = allCalls
     if (closerFilter) calls = calls.filter(c => c.closer?.name === closerFilter)
     if (sourceFilter) calls = calls.filter(c => c.source === sourceFilter)
     if (typeFilter) calls = calls.filter(c => c.source_type === typeFilter)
+    const f = getCurrentPeriodFilters(period, dateFrom, dateTo)
+    if (f.week) calls = calls.filter(c => c.week === f.week)
+    if (f.month) calls = calls.filter(c => c.month === f.month)
+    if (f.dateFrom) calls = calls.filter(c => c.date_start_time && c.date_start_time >= f.dateFrom!)
+    if (f.dateTo) calls = calls.filter(c => c.date_start_time && c.date_start_time <= f.dateTo! + 'T23:59:59')
+    return calls
+  }, [allCalls, period, dateFrom, dateTo, sourceFilter, typeFilter, closerFilter])
 
-    const prevFilters = getPreviousPeriodFilters(period, dateFrom, dateTo)
-
-    if (prevFilters.week) {
-      calls = calls.filter(c => c.week === prevFilters.week)
-    }
-    if (prevFilters.month) {
-      calls = calls.filter(c => c.month === prevFilters.month)
-    }
-    if (prevFilters.dateFrom) {
-      calls = calls.filter(c => c.date_start_time && c.date_start_time >= prevFilters.dateFrom!)
-    }
-    if (prevFilters.dateTo) {
-      calls = calls.filter(c => c.date_start_time && c.date_start_time <= prevFilters.dateTo! + 'T23:59:59')
-    }
-
+  const previousCalls = useMemo(() => {
+    if (period === 'all') return []
+    let calls = allCalls
+    if (closerFilter) calls = calls.filter(c => c.closer?.name === closerFilter)
+    if (sourceFilter) calls = calls.filter(c => c.source === sourceFilter)
+    if (typeFilter) calls = calls.filter(c => c.source_type === typeFilter)
+    const f = getPreviousPeriodFilters(period, dateFrom, dateTo)
+    if (f.week) calls = calls.filter(c => c.week === f.week)
+    if (f.month) calls = calls.filter(c => c.month === f.month)
+    if (f.dateFrom) calls = calls.filter(c => c.date_start_time && c.date_start_time >= f.dateFrom!)
+    if (f.dateTo) calls = calls.filter(c => c.date_start_time && c.date_start_time <= f.dateTo! + 'T23:59:59')
     return calls
   }, [allCalls, period, dateFrom, dateTo, sourceFilter, typeFilter, closerFilter])
 
   const metrics = useMemo(() => calculateMetrics(filteredCalls), [filteredCalls])
   const prevMetrics = useMemo(() => calculateMetrics(previousCalls), [previousCalls])
 
-  // Contract-mix (PIF vs Split) over de gefilterde calls: 1 termijn = PIF, >=2 = Split.
   const contractMixStats = useMemo(() => {
     const ids = new Set(filteredCalls.map(c => c.id))
     const relevant = contractMix.contracts.filter(c => c.call_id && ids.has(c.call_id))
     const total = relevant.length
     const split = relevant.filter(c => c.count >= 2).length
     const pif = total - split
-    return {
-      total,
-      pif,
-      split,
-      pifPct: total > 0 ? Math.round((pif / total) * 100) : 0,
-      splitPct: total > 0 ? Math.round((split / total) * 100) : 0,
-    }
+    return { total, pif, split, pifPct: total > 0 ? Math.round((pif / total) * 100) : 0, splitPct: total > 0 ? Math.round((split / total) * 100) : 0 }
   }, [contractMix, filteredCalls])
 
-  // Order value (som contracts.deal_value) + Cash collected (som betaalde payments)
-  // over gefilterde calls — echte bronnen i.p.v. call-velden.
   const { orderValue, cashCollected } = useMemo(() => {
     const ids = new Set(filteredCalls.map(c => c.id))
-    const ov = contractMix.contracts
-      .filter(c => c.call_id && ids.has(c.call_id))
-      .reduce((sum, c) => sum + c.deal_value, 0)
+    const ov = contractMix.contracts.filter(c => c.call_id && ids.has(c.call_id)).reduce((s, c) => s + c.deal_value, 0)
     let cash = 0
-    for (const [callId, amount] of Object.entries(contractMix.cashByCall)) {
-      if (ids.has(callId)) cash += amount
-    }
+    for (const [callId, amount] of Object.entries(contractMix.cashByCall)) if (ids.has(callId)) cash += amount
     return { orderValue: ov, cashCollected: cash }
   }, [contractMix, filteredCalls])
 
+  const weekly = useMemo(() => {
+    const map = new Map<number, Call[]>()
+    for (const c of filteredCalls) if (c.week != null) { const a = map.get(c.week) || []; a.push(c); map.set(c.week, a) }
+    const entries = [...map.entries()].sort((a, b) => a[0] - b[0])
+    return {
+      labels: entries.map(([w]) => `W${w}`),
+      calls: entries.map(([, a]) => a.length),
+      dealValue: entries.map(([, a]) => a.filter(c => c.result === 'CLOSED').reduce((s, c) => s + (c.deal_value || 0), 0)),
+      cash: entries.map(([, a]) => a.reduce((s, c) => s + (c.cash_collected || 0), 0)),
+      closingRate: entries.map(([, a]) => { const t = a.length, cl = a.filter(c => c.result === 'CLOSED').length; return t > 0 ? Math.round((cl / t) * 1000) / 10 : 0 }),
+    }
+  }, [filteredCalls])
+
   const sources = useMemo(() => [...new Set(allCalls.map(c => c.source).filter(Boolean))].sort(), [allCalls])
   const types = useMemo(() => [...new Set(allCalls.map(c => c.source_type).filter(Boolean))].sort(), [allCalls])
-  const hasPreviousPeriod = period !== 'all'
-  const hasActiveFilters = sourceFilter || typeFilter || closerFilter || period !== 'all'
+  const hasPrev = period !== 'all'
+
+  const delta = (cur: number, prev: number): { dir: 'up' | 'down' | 'flat'; txt: string } | undefined => {
+    if (!hasPrev || prev === 0) return undefined
+    const d = ((cur - prev) / prev) * 100
+    return { dir: d > 0.5 ? 'up' : d < -0.5 ? 'down' : 'flat', txt: `${Math.abs(Math.round(d * 10) / 10)}%` }
+  }
+  const dCalls = delta(metrics.totalCalls, prevMetrics.totalCalls)
+  const dClose = delta(metrics.closingRate, prevMetrics.closingRate)
+  const dCloseT = delta(metrics.closingRateTaken, prevMetrics.closingRateTaken)
 
   if (loading) return <SkeletonPage />
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Sales Overview</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            <span className="tabular-nums">{filteredCalls.length}</span> calls
-            {period !== 'all' && (
-              <span> · vergelijking met vorige periode</span>
-            )}
-          </p>
-        </div>
-      </div>
+      <ScreenHeader
+        eyebrow="REVENUE / SALES"
+        title="Sales Overview"
+        right={
+          <span className="font-body text-[12px] text-ink/50">
+            <span className="font-heading font-semibold text-ink tabular-nums">{filteredCalls.length}</span> CALLS
+            {hasPrev && <span className="text-ink/40"> · VS PREVIOUS PERIOD</span>}
+          </span>
+        }
+      />
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
-        <div className="flex items-center gap-1.5">
-          <Filter className="w-4 h-4 text-gray-400" {...iconProps} />
-        </div>
-
-        {/* Closer filter */}
-        <div className="relative">
-          <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" {...iconProps} />
-          <select
-            value={closerFilter}
-            onChange={e => setCloserFilter(e.target.value)}
-            className="h-9 text-sm border border-gray-200 rounded-lg pl-8 pr-3 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-accent-500 appearance-none cursor-pointer"
-          >
-            <option value="">Alle closers</option>
-            {closers.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-
-        {/* Time period */}
-        <div className="flex items-center rounded-lg border border-gray-200 bg-white overflow-hidden">
-          {([
-            ['all', 'Alles'],
-            ['week', 'Week'],
-            ['month', 'Maand'],
-            ['custom', 'Custom'],
-          ] as [TimePeriod, string][]).map(([value, label]) => (
-            <button
-              key={value}
-              onClick={() => setPeriod(value)}
-              className={`px-3 h-9 text-sm transition-colors duration-[120ms] ${
-                period === value
-                  ? 'bg-gray-900 text-white font-medium'
-                  : 'text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
+      {/* Filter bar */}
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        <select value={closerFilter} onChange={e => setCloserFilter(e.target.value)} className={selectCls}>
+          <option value="">ALL CLOSERS</option>
+          {closers.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <SegmentedControl<TimePeriod>
+          options={[{ value: 'all', label: 'All' }, { value: 'week', label: 'Week' }, { value: 'month', label: 'Month' }, { value: 'custom', label: 'Custom' }]}
+          value={period} onChange={setPeriod}
+        />
         {period === 'custom' && (
           <div className="flex items-center gap-2">
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={e => setDateFrom(e.target.value)}
-              className="h-9 text-sm border border-gray-200 rounded-lg px-3 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-accent-500"
-            />
-            <span className="text-gray-400 text-sm">t/m</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={e => setDateTo(e.target.value)}
-              className="h-9 text-sm border border-gray-200 rounded-lg px-3 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-accent-500"
-            />
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className={selectCls} />
+            <span className="text-ink/40 text-xs">—</span>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className={selectCls} />
           </div>
         )}
-
-        {/* Source filter */}
-        <select
-          value={sourceFilter}
-          onChange={e => setSourceFilter(e.target.value)}
-          className="h-9 text-sm border border-gray-200 rounded-lg px-3 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-accent-500"
-        >
-          <option value="">Alle bronnen</option>
+        <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)} className={selectCls}>
+          <option value="">ALL SOURCES</option>
           {sources.map(s => <option key={s} value={s!}>{s}</option>)}
         </select>
-
-        {/* Type filter */}
-        <select
-          value={typeFilter}
-          onChange={e => setTypeFilter(e.target.value)}
-          className="h-9 text-sm border border-gray-200 rounded-lg px-3 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-accent-500"
-        >
-          <option value="">Alle types</option>
+        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className={selectCls}>
+          <option value="">ALL TYPES</option>
           {types.map(t => <option key={t} value={t!}>{t}</option>)}
         </select>
-
-        {hasActiveFilters && (
-          <button
-            onClick={() => { setCloserFilter(''); setSourceFilter(''); setTypeFilter(''); setPeriod('all'); setDateFrom(''); setDateTo('') }}
-            className="h-9 px-3 text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 transition-colors duration-[120ms]"
-          >
-            <X className="w-3.5 h-3.5" {...iconProps} />
-            Reset
-          </button>
-        )}
       </div>
 
-      {/* KPI Grid: 5 columns x 2 rows */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-        {/* Row 1 */}
-        <MetricCard
-          label="Total calls"
-          value={metrics.totalCalls}
-          prev={hasPreviousPeriod ? prevMetrics.totalCalls : undefined}
-          subtitle={`${metrics.closedDeals} deals / ${metrics.totalCalls} calls`}
-        />
-        <MetricCard
-          label="Order value"
-          value={eur(orderValue)}
-          rawCurrent={orderValue}
-          subtitle={`${metrics.closedDeals} deals`}
-        />
-        <MetricCard
-          label="Cash collected"
-          value={eur(cashCollected)}
-          rawCurrent={cashCollected}
-        />
-        <MetricCard
-          label="Closing rate"
-          value={`${metrics.closingRate.toFixed(1)}%`}
-          rawCurrent={metrics.closingRate}
-          rawPrev={hasPreviousPeriod ? prevMetrics.closingRate : undefined}
-          subtitle="geboekt"
-        />
-        <MetricCard
-          label="Closing rate (taken)"
-          value={`${metrics.closingRateTaken.toFixed(1)}%`}
-          rawCurrent={metrics.closingRateTaken}
-          rawPrev={hasPreviousPeriod ? prevMetrics.closingRateTaken : undefined}
-          subtitle="genomen"
-        />
-
-        {/* Row 2 */}
-        <MetricCard
-          label="Show-up rate"
-          value={`${metrics.showUpRate.toFixed(1)}%`}
-          rawCurrent={metrics.showUpRate}
-          rawPrev={hasPreviousPeriod ? prevMetrics.showUpRate : undefined}
-        />
-        <MetricCard
-          label="Cancel rate"
-          value={`${metrics.cancelRate.toFixed(1)}%`}
-          rawCurrent={metrics.cancelRate}
-          rawPrev={hasPreviousPeriod ? prevMetrics.cancelRate : undefined}
-        />
-        <MetricCard
-          label="Gem. orderwaarde"
-          value={eur(metrics.avgOrderValue)}
-          rawCurrent={metrics.avgOrderValue}
-          rawPrev={hasPreviousPeriod ? prevMetrics.avgOrderValue : undefined}
-        />
-        <MetricCard
-          label="Cash / call (taken)"
-          value={eur(metrics.cashPerCallTaken)}
-          rawCurrent={metrics.cashPerCallTaken}
-          rawPrev={hasPreviousPeriod ? prevMetrics.cashPerCallTaken : undefined}
-        />
-        <MetricCard
-          label="Cash / call (booked)"
-          value={eur(metrics.cashPerCallBooked)}
-          rawCurrent={metrics.cashPerCallBooked}
-          rawPrev={hasPreviousPeriod ? prevMetrics.cashPerCallBooked : undefined}
-        />
-
-        {/* Row 3: contract-mix */}
-        <MetricCard
-          label="Paid in Full"
-          value={`${contractMixStats.pifPct}%`}
-          subtitle={`${contractMixStats.pif}/${contractMixStats.total} contracten`}
-        />
-        <MetricCard
-          label="Split (termijnen)"
-          value={`${contractMixStats.splitPct}%`}
-          subtitle={`${contractMixStats.split}/${contractMixStats.total} contracten`}
-        />
+      {/* KPI strip */}
+      <div className="mb-6">
+        <KpiStrip cols={5}>
+          <KpiCell label="Total Calls" value={metrics.totalCalls} delta={dCalls?.txt} deltaDir={dCalls?.dir} caption={`${metrics.closedDeals} deals / ${metrics.totalCalls} calls`} />
+          <KpiCell label="Order Value" value={eur(orderValue)} caption={`${contractMixStats.total} contracts`} />
+          <KpiCell label="Cash Collected" value={eur(cashCollected)} />
+          <KpiCell label="Closing Rate" value={`${metrics.closingRate.toFixed(1)}%`} delta={dClose?.txt} deltaDir={dClose?.dir} caption="booked" />
+          <KpiCell label="Closing (Taken)" value={`${metrics.closingRateTaken.toFixed(1)}%`} delta={dCloseT?.txt} deltaDir={dCloseT?.dir} caption="taken" />
+          <KpiCell size="sm" label="Show-up Rate" value={`${metrics.showUpRate.toFixed(1)}%`} />
+          <KpiCell size="sm" label="Cancel Rate" value={`${metrics.cancelRate.toFixed(1)}%`} />
+          <KpiCell size="sm" label="Avg Order Value" value={eur(metrics.avgOrderValue)} />
+          <KpiCell size="sm" label="Cash / Call" value={eur(metrics.cashPerCallTaken)} />
+          <KpiCell size="sm" label="Paid in Full" value={`${contractMixStats.pifPct}%`} caption={`${contractMixStats.pif}/${contractMixStats.total}`} />
+        </KpiStrip>
       </div>
 
-      {/* Charts: 2x2 grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-lg border border-gray-200 p-5">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Total calls per week</h3>
-          <div className="h-[260px]">
-            <CallsPerWeekChart calls={filteredCalls} />
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-[22px]">
+        <Panel title="Total Calls / Week">
+          <div className="h-[190px]">{weekly.labels.length ? <SteelBars labels={weekly.labels} data={weekly.calls} /> : <Empty />}</div>
+        </Panel>
+        <Panel title="Deal Value / Week">
+          <div className="h-[190px]">{weekly.labels.length ? <SteelArea labels={weekly.labels} data={weekly.dealValue} /> : <Empty />}</div>
+        </Panel>
+        <Panel title="Cash Collected / Week">
+          <div className="h-[190px]">{weekly.labels.length ? <SteelBars labels={weekly.labels} data={weekly.cash} /> : <Empty />}</div>
+        </Panel>
+        <Panel title="Contract Mix & Trend" bodyClass="p-0">
+          <div className="grid grid-cols-2 divide-x divide-divider">
+            <div className="p-4">
+              <div className="font-heading font-semibold uppercase text-[9.5px] tracking-[0.13em] text-ink/50 mb-3">Paid in Full vs Split</div>
+              <SegmentBar a={contractMixStats.pif} b={contractMixStats.split} />
+              <div className="mt-3 space-y-1.5">
+                <LegendRow color="#2c455d" label="Paid in Full" value={`${contractMixStats.pifPct}%`} />
+                <LegendRow color="#b5d9fd" label="Split" value={`${contractMixStats.splitPct}%`} />
+              </div>
+            </div>
+            <div className="p-4">
+              <div className="font-heading font-semibold uppercase text-[9.5px] tracking-[0.13em] text-ink/50 mb-3">Closing Rate / Week</div>
+              <div className="h-[90px]">{weekly.labels.length ? <Sparkline data={weekly.closingRate} /> : <Empty />}</div>
+              {weekly.labels.length > 0 && (
+                <div className="flex justify-between mt-1 font-heading font-semibold text-[9px] tracking-[0.04em] text-ink/40">
+                  <span>{weekly.labels[0]}</span><span>{weekly.labels[weekly.labels.length - 1]}</span>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-5">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Deal value per week</h3>
-          <div className="h-[260px]">
-            <DealValuePerWeekChart calls={filteredCalls} />
-          </div>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-5">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Cash collected per week</h3>
-          <div className="h-[260px]">
-            <CashPerWeekChart calls={filteredCalls} />
-          </div>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-5">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Closing rate per week</h3>
-          <div className="h-[260px]">
-            <ClosingRatePerWeekChart calls={filteredCalls} />
-          </div>
-        </div>
+        </Panel>
       </div>
     </div>
   )
 }
 
-function MetricCard({ label, value, prev, rawCurrent, rawPrev, subtitle }: {
-  label: string
-  value: string | number
-  prev?: number
-  rawCurrent?: number
-  rawPrev?: number
-  subtitle?: string
-}) {
-  const currentNum = rawCurrent ?? (typeof value === 'number' ? value : 0)
-  const previousNum = rawPrev ?? prev
-  const showComparison = previousNum !== undefined
-
+function LegendRow({ color, label, value }: { color: string; label: string; value: string }) {
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-5">
-      <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">{label}</div>
-      <div className="flex items-baseline gap-2">
-        <div className="text-2xl font-semibold text-gray-900 tabular-nums">{value}</div>
-        {showComparison && <ChangeIndicator current={currentNum} previous={previousNum!} />}
-      </div>
-      {subtitle && <div className="text-xs text-gray-400 mt-1">{subtitle}</div>}
+    <div className="flex items-center gap-2">
+      <span className="w-2.5 h-2.5" style={{ background: color }} />
+      <span className="font-heading font-semibold uppercase text-[10px] tracking-[0.06em] text-ink/60 flex-1">{label}</span>
+      <span className="font-heading font-semibold tabular-nums text-[12px] text-ink">{value}</span>
     </div>
   )
+}
+
+function Empty() {
+  return <div className="flex items-center justify-center h-full font-body text-[12px] text-ink/40">No week data</div>
 }
