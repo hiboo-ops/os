@@ -18,12 +18,13 @@ interface Submission {
   signature: string | null
 }
 
+// Mono steel steps (Industry) — red only for the REJECTED signal.
 const STAGES = [
-  { key: 'NEW', label: 'Nieuw', color: 'bg-blue-500' },
-  { key: 'IN_PROGRESS', label: 'In behandeling', color: 'bg-amber-500' },
-  { key: 'INTERVIEW', label: 'Gesprek', color: 'bg-violet-500' },
-  { key: 'APPROVED', label: 'Goedgekeurd', color: 'bg-emerald-500' },
-  { key: 'REJECTED', label: 'Afgewezen', color: 'bg-red-500' },
+  { key: 'NEW', label: 'Nieuw', color: 'bg-accent-800' },
+  { key: 'IN_PROGRESS', label: 'In behandeling', color: 'bg-accent-600' },
+  { key: 'INTERVIEW', label: 'Gesprek', color: 'bg-accent-400' },
+  { key: 'APPROVED', label: 'Goedgekeurd', color: 'bg-accent-800' },
+  { key: 'REJECTED', label: 'Afgewezen', color: 'bg-[var(--color-danger)]' },
 ]
 
 export default function PartnerCrmPage() {

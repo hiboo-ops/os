@@ -2,8 +2,9 @@ import { redirect } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getAuthUser } from '@/lib/auth'
 import type { UserRole } from '@/lib/auth'
-import { KpiCard } from '@/components/ui/card'
-import { Users, Target, ClipboardCheck, CreditCard } from 'lucide-react'
+import { KpiStrip, KpiCell } from '@/components/ui/kpi-strip'
+import { ScreenHeader } from '@/components/ui/industry-ui'
+import { eur } from '@/lib/format'
 
 export const revalidate = 30
 
@@ -49,17 +50,13 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-xl font-semibold text-gray-900">Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">Overzicht van Hiboo OS</p>
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="Clients" value={stats.totalClients} caption={`${stats.activeClients} actief`} captionColor="success" />
-        <KpiCard label="Leads" value={stats.totalLeads} />
-        <KpiCard label="Deals" value={stats.totalDeals} />
-        <KpiCard label="Payments" value={stats.totalPayments} />
-      </div>
+      <ScreenHeader eyebrow="OPERATIONS" title="Dashboard" />
+      <KpiStrip cols={4}>
+        <KpiCell label="Clients" value={stats.totalClients} caption={`${stats.activeClients} active`} />
+        <KpiCell label="Leads" value={stats.totalLeads.toLocaleString('nl-NL')} />
+        <KpiCell label="Deals" value={stats.totalDeals} />
+        <KpiCell label="Payments" value={stats.totalPayments} caption={eur(stats.totalPaid)} />
+      </KpiStrip>
     </div>
   )
 }
