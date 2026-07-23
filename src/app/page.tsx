@@ -137,7 +137,7 @@ export default function DashboardPage() {
       {/* ── Recurring & Customer ── */}
       <Panel title="RECURRING & CUSTOMER">
         <div className="grid grid-cols-4 -m-4">
-          <KpiCell label="MRR" value={eur(data.mrr)} caption={data.mrr === 0 ? 'expected this month' : undefined} />
+          <KpiCell label="MRR" value={eur(data.mrr)} caption="community upsell — not live yet" />
           <KpiCell label="CHURN RATE" value={pct(data.churnRate)} caption={`${data.churnCount} churned / ${data.activeAccountCount} active`} danger={data.churnRate > 10} />
           <KpiCell label="NPS" value={data.nps != null ? data.nps.toFixed(1) : '—'} caption={data.npsCount > 0 ? `${data.npsCount} responses` : 'no data yet'} />
           <KpiCell label="REFUND RATE" value={pct(data.refundRate)} caption={data.refundCount > 0 ? `${data.refundCount} refunds (${eur(data.refundAmount)})` : 'no refunds'} danger={data.refundRate > 5} />

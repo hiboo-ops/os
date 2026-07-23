@@ -252,17 +252,10 @@ export async function getCeoDashboardData(period: Period = 'all'): Promise<CeoDa
     ? Math.round((paidIpCount / (paidIpCount + openIpCount)) * 100)
     : 0
 
-  // ── MRR: recurring termijn-inkomsten (installment #2+) die deze maand vervallen,
-  //    nog niet betaald, legacy uitgesloten. First deposits (#1) tellen niet mee. ──
-  let mrr = 0
-  for (const ip of incoming) {
-    if (isLegacyIncoming(ip)) continue
-    if (ip.status === 'PAID' || ip.status === 'REFUNDED') continue
-    if ((ip.installment_number ?? 1) < 2) continue
-    if (ip.due_date && ip.due_date >= monthStart && ip.due_date <= monthEnd) {
-      mrr += ip.amount || 0
-    }
-  }
+  // ── MRR = community-upsell (aparte recurring subscription-link, nog te bouwen).
+  //    Termijnbetalingen zijn GEEN MRR. Blijft 0 tot de community-subscriptions
+  //    bestaan; dan hier: som van actieve community-abonnementen × maandprijs. ──
+  const mrr = 0
 
   // ── Churn ──
   const nonLegacyAccounts = accounts.filter(a => !a.is_legacy)
