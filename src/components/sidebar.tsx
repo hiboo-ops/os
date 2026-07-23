@@ -7,7 +7,7 @@ import {
   Megaphone, ClipboardCheck, Menu, X, LayoutDashboard,
   Columns3, ListChecks, FileEdit, ChevronDown, BookOpen,
   Phone, Kanban, CalendarDays, Handshake, Calendar,
-  ClipboardList, Inbox
+  ClipboardList, Inbox, Coins
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
@@ -53,15 +53,17 @@ const nav: NavItem[] = [
       { href: '/finance', label: 'Overzicht', icon: LayoutDashboard, roles: ['ADMIN', 'FINANCE'] },
       { href: '/finance/collections', label: 'Collections', icon: Inbox, roles: ['ADMIN', 'FINANCE'] },
       { href: '/finance/accounts', label: 'Accounts', icon: Users, roles: ['ADMIN', 'FINANCE'] },
+      { href: '/finance/team-costs', label: 'Team Costs', icon: Coins, roles: ['ADMIN', 'FINANCE'] },
       { href: '/finance/verificatie', label: 'Verificatie', icon: ClipboardCheck, roles: ['ADMIN'] },
       { href: '/eod/finance', label: 'EOD', icon: ClipboardList, roles: ['ADMIN', 'FINANCE'] },
     ],
   },
   { href: '/creators', label: 'Creators', icon: Megaphone, roles: ['ADMIN', 'PARTNER_MANAGER'] },
   {
-    href: '/partner-manager/crm', label: 'Partner Manager', icon: Handshake, roles: ['ADMIN', 'PARTNER_MANAGER'],
+    href: '/partner-manager', label: 'Partner Manager', icon: Handshake, roles: ['ADMIN', 'PARTNER_MANAGER'],
     children: [
-      { href: '/creators', label: 'Overzicht', icon: Megaphone },
+      { href: '/partner-manager', label: 'Overview', icon: LayoutDashboard },
+      { href: '/creators', label: 'Creators', icon: Megaphone },
       { href: '/partner-manager/crm', label: 'CRM', icon: Columns3 },
       { href: '/eod/partner-manager', label: 'EOD', icon: ClipboardList },
     ],
@@ -92,7 +94,7 @@ export function Sidebar() {
     '/sales/pipeline': pathname.startsWith('/sales/pipeline') || pathname.startsWith('/eod/setter'),
     '/leads': pathname.startsWith('/leads'),
     '/finance': pathname.startsWith('/finance') || pathname === '/eod/finance',
-    '/partner-manager/crm': pathname.startsWith('/partner-manager') || pathname.startsWith('/creators') || pathname === '/eod/partner-manager',
+    '/partner-manager': pathname.startsWith('/partner-manager') || pathname.startsWith('/creators') || pathname === '/eod/partner-manager',
   })
   const [userRole, setUserRole] = useState<UserRole | null>(null)
 

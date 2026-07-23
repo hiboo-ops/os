@@ -85,3 +85,36 @@ export async function sendSlackNotification(text: string, blocks?: Record<string
 export async function sendSlackEodSummary(text: string, blocks?: Record<string, unknown>[]): Promise<void> {
   await sendToPurpose('eod', text, blocks)
 }
+
+/**
+ * Send a Slack DM to a specific user via Bot Token (chat.postMessage).
+ * Requires SLACK_BOT_TOKEN env var + chat:write scope.
+ * Fire-and-forget — errors are logged but never break the request.
+ */
+export async function sendSlackDm(slackUserId: string, text: string): Promise<void> {
+  const token = process.env.SLACK_BOT_TOKEN
+  if (!token || !slackUserId) return
+  const start = Date.now()
+  try {
+    const res = await fetch('https://slack.com/api/chat.postMessage', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ channel: slackUserId, text }),
+    })
+    logApiEvent({
+      direction: 'OUTBOUND', source: 'slack', action: 'dm',
+      status: res.ok ? 'SUCCESS' : 'FAILED',
+      http_status: res.status, duration_ms: Date.now() - start,
+    })
+  } catch (err) {
+    console.error('[Slack] DM versturen mislukt:', err)
+    logApiEvent({
+      direction: 'OUTBOUND', source: 'slack', action: 'dm',
+      status: 'FAILED', duration_ms: Date.now() - start,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+}

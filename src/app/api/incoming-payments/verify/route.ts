@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser, requireRole } from '@/lib/auth'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import { updateAccountLtv } from '@/lib/queries/accounts'
+import { calculateCommissionsForPayment } from '@/lib/queries/commissions'
 
 /**
  * Verificatie-acties voor manuele overschrijvingen.
@@ -91,6 +92,9 @@ export async function POST(req: NextRequest) {
 
       // Herbereken LTV
       await updateAccountLtv(ip.account_id)
+
+      // Auto-calculate commissions (fire-and-forget)
+      calculateCommissionsForPayment(payment.id, ip.account_id).catch(() => {})
 
       return NextResponse.json({
         success: true,

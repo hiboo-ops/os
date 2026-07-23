@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import { updateAccountLtv } from '@/lib/queries/accounts'
+import { calculateCommissionsForPayment } from '@/lib/queries/commissions'
 
 /**
  * Whop webhook.
@@ -129,6 +130,9 @@ export async function POST(req: NextRequest) {
 
     // Herbereken LTV
     await updateAccountLtv(ip.account_id)
+
+    // Auto-calculate commissions (fire-and-forget)
+    calculateCommissionsForPayment(payment.id, ip.account_id).catch(() => {})
 
     return NextResponse.json({ received: true, matched: true, payment_id: payment.id })
   }
